@@ -1,8 +1,8 @@
-[BITS 16] # 16-bit in real mode
-[ORG 0x7c00] # start to run at 0x7c00
+[BITS 16] ; 16-bit in real mode
+[ORG 0x7c00] ; start to run at 0x7c00
 
-# initialization of segment registers and stack pointer 
-# now, ax is 0
+; initialization of segment registers and stack pointer 
+; now, ax is 0
 start:
     xor ax,ax   
     mov ds,ax
