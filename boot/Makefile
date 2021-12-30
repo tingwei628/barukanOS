@@ -20,8 +20,9 @@ boot.bin: boot.asm
 loader.bin: loader.asm
 	$(ASM) -f bin $< -o $@
 
+# pdpe1gb is for 1G huge page support
 qemu: boot.img
-	$(QEMU) -drive format=raw,file=$< 
+	$(QEMU) -cpu qemu64,pdpe1gb -drive format=raw,file=$<
 
 .PHONY:	clean
 clean: 
