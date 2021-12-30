@@ -1,5 +1,8 @@
 #osx
 .DS_Store
+#os
+*.bin
+*.img
 
 # Prerequisites
 *.d
