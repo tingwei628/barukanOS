@@ -117,15 +117,51 @@ TestA20:
 SetA20LineDone:
     xor ax,ax
     mov es,ax
-    
-PrintMessage:
-    mov ah, 0x13
-    mov al, 1
-    mov bx, 0xa
-    xor dx, dx
-    mov bp, Message
-    mov cx, MessageLen 
+
+; set video mode to "TextMode"
+SetVideoMode:
+    mov ax, 3
     int 0x10
+    mov si, Message
+    ; screen has 25 lines, and  each line has 80 bytes (Resolution = 80 * 25)
+    ; 0xb8000 is first position (top left) on screen
+    ; es:di = 0xb8000
+    ; 0xb800 * 16 + 0 = 0xb8000
+    ; es = 0xb800 (segment) and di = 0 (offset)
+    mov ax, 0xb800
+    mov es, ax
+    xor di, di
+    ; cx is number of characters in string
+    mov cx, MessageLen
+
+; print message on screen
+PrintMessage:
+    ; copy a char from message to position on screen
+    mov al, [si]
+    mov [es:di], al
+    ; each position on screen has 2 bytes
+    ; position = [char:background-color|foreground-color]
+    ; upper-half of position is char
+    ; lower-half if position is background-color|foreground-color
+    ; set char color(0xa) on 2nd byte in position
+    mov byte[es:di+1], 0xa
+    ; move to next position
+    add di, 2
+    ; each char in message has 1 byte
+    ; move to next char
+    add si, 1
+    ; cx = loop count, each time loop, cx = cx - 1
+    loop PrintMessage
+
+
+; BIOSPrintMessage:
+;     mov ah, 0x13
+;     mov al, 1
+;     mov bx, 0xa
+;     xor dx, dx
+;     mov bp, Message
+;     mov cx, MessageLen 
+;     int 0x10
 
 ReadError:
 NotAvailable:
@@ -134,6 +170,6 @@ End:
     jmp End
 
 DriveId:    db 0
-Message:    db "a20 line is on"
+Message:    db "Text mode is set"
 MessageLen: equ $-Message
 ReadPacket: times 16 db 0
