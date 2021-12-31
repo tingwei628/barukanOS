@@ -82,11 +82,42 @@ GetMemInfo:
     mov ecx, 20
     int 0x15
     ; jump if there is NO next memory block
-    jc PrintMessage
+    jc GetMemDone
     ; test => ebx & ebx, if result!=0, ZF=0, then jump
     test ebx, ebx
     jnz GetMemInfo
 
+; test whether A20 line is enabled or not
+GetMemDone:
+TestA20:
+    ; if A20 line enabled, bit-20=1
+    ; if not enabled, bit-20=0
+    ; e.g. 0x107c00 (A20 line enabled) => 0x107c00
+    ;      0x107c00 (A20 line NOT enabled) => 0x007c00
+    ; 0xffff = 0b1111111111111111 (binary format)
+    mov ax, 0xffff
+    mov es, ax
+    ; segement ds = 0, offset = 0x7c00 
+    ; 0 * 16 + 0x7c00 = 0x7c00 (address)
+    ; it has value 0xa200 at address 0x7c00 
+    mov word[ds:0x7c00], 0xa200
+    ; segment es = 0xffff, offset = 0x7c10
+    ; es:0x7c10 => 0xffff * 16 + 0x7c10 = 0x107C00
+    cmp word[es:0x7c10], 0xa200
+    ; when address is NOT the same, then jmp SetA20LineDone
+    jne SetA20LineDone
+    ; because 0x107C00 may just has value 0xa200 before
+    ; that's why we need the double check
+    ; let's assign different random value "0xb200"
+    mov word[0x7c00], 0xb200
+    cmp word[es:0x7c10], 0xb200
+    ; if they are same, A20 line is not enabled
+    je End
+    
+SetA20LineDone:
+    xor ax,ax
+    mov es,ax
+    
 PrintMessage:
     mov ah, 0x13
     mov al, 1
@@ -103,6 +134,6 @@ End:
     jmp End
 
 DriveId:    db 0
-Message:    db "Get memory info done"
+Message:    db "a20 line is on"
 MessageLen: equ $-Message
 ReadPacket: times 16 db 0
