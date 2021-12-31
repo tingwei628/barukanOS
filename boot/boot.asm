@@ -36,6 +36,7 @@ LoadLoader:
     ; transfer buffer (16 bit segment:16 bit offset)
     ; 16 bit offset=0x7e00 (stored in word[si+4])
     ; 16 bit segment=0 (stored in word[si+6])
+    ; address => 0 * 16 + 0x7e00 = 0x7e00
     mov word[si+4], 0x7e00
     mov word[si+6], 0
     ; absolute number of the start of the sectors to be read
