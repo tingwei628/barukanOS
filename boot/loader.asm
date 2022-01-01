@@ -122,6 +122,11 @@ SetA20LineDone:
 SetVideoMode:
     mov ax, 3
     int 0x10
+
+    jmp SetupProtectedMode
+    
+; setup a message to print on screen
+SetupMessage:
     mov si, Message
     ; screen has 25 lines, and  each line has 80 bytes (Resolution = 80 * 25)
     ; 0xb8000 is first position (top left) on screen
@@ -153,7 +158,6 @@ PrintMessage:
     ; cx = loop count, each time loop, cx = cx - 1
     loop PrintMessage
 
-
 ; BIOSPrintMessage:
 ;     mov ah, 0x13
 ;     mov al, 1
@@ -162,6 +166,32 @@ PrintMessage:
 ;     mov bp, Message
 ;     mov cx, MessageLen 
 ;     int 0x10
+
+; setup before entering protected mode (32-bit)
+SetupProtectedMode:
+    ; disable interrupts 
+    cli
+    ; load GDT pointer value from memory to GDTR
+    lgdt [Gdt32Ptr]
+    ; load IDT pinter value from memory to IDTR
+    lidt [Idt32Ptr]
+
+    ; enable protected mode=1
+    mov eax, cr0
+    or eax,1
+    mov cr0, eax
+    ; Real mode => "Segment:Offset"
+    ; Protected Mode => "segment selector:Offset"
+    ; jump to code descriptor in protected mode
+    ; CS (code segment register) store code segment selector
+    ; code segment selector => 00001000
+    ; (use code segment selector to find code segment descriptor)
+    ; bit-0 to bit-1 =00 (RPL, requested privilege level)
+    ; bit-2 = 0 (0 for GDT, 1 for LDT)
+    ; bit-3 to bit-15 = 1(index in GDT or LDT)
+    ; code segment descriptor is the 2nd entry (index=1) in GDT
+    ; 8 = 00001000
+    jmp 8:PMEntry
 
 ReadError:
 NotAvailable:
@@ -173,3 +203,92 @@ DriveId:    db 0
 Message:    db "Text mode is set"
 MessageLen: equ $-Message
 ReadPacket: times 16 db 0
+
+; 32-bit in protected mode
+[BITS 32]
+PMEntry:
+    ; set data segment selector(=00010000=0x10) to ds, es, ss
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov esp, 0x7c00
+    ; print 'P' on screen
+    ; the first position on screen is 0xb8000
+    ; char = 'P', color = 0xa
+    mov byte[0xb8000], 'P'
+    mov byte[0xb8001], 0xa
+
+PEnd:
+    hlt
+    jmp PEnd
+
+; start to define GDT (each entry has 8 bytes in GDT)
+; it has only 3 entries in this course...
+; (GDT can be up to 65536 bytes in length (8192 entries))
+; null null descriptor (the first entry in GDT)
+Gdt32:
+    ; dq = 8 bytes
+    dq 0
+; code segment descriptor, offset 8 bytes from base address of GDT
+; (the 2nd entry in GDT)
+Code32:
+    ; limit low (bit-0 to bit-15)
+    dw 0xffff
+    ; base low (bit-16 to bit-31)
+    ; code segement start at 0
+    dw 0
+    ; base middle (bit-32 to bit-39)
+    db 0
+    ; access
+    ; 0x9a=10011010 (binary format)
+    ; bit-40=0 (access, used with virtual memory)
+    ; bit-41=1 (readable/writable)
+    ; 0 for execute only, 1 for read and execute
+    ; bit-42=0 (is conforming)
+    ; 0 for "not conforming"(only executed =privilege level field), 1 for conforming (can be executed <= privilege level field)
+    ; bit-43=1 (1 for code segment, 0 for data segment)
+    ; bit-44=1 (0 for "system", 1 for "code/data" descriptor)
+    ; bit-45 to bit-46 = 00 (privilege level, 00(Ring 0))
+    ; bit-47=1 (present bit, is the segment in memory, used with virtual memory)
+    db 0x9a
+    ; granularity
+    ; 0xcf=11001111 (binary format)
+    ; bit-48 to bit-51=1111 (limit high, bit-16 to bit-19)
+    ; bit-52=0 (reserved)
+    ; bit-53=0 (long mode, 1 for 64 bit)
+    ; bit-54=1 (segment type, 0 for 16 bit/ 1 for 32 bit)
+    ; bit-55=1 (granularity, 1 for 4kb, 0 for 1byte)
+    db 0xcf
+    ; base high (bit-56 to bit-63)
+    db 0
+; data segment descriptor, offset 16 bytes from base address of GDT
+; (the 3rd entry in GDT)
+Data32:
+    dw 0xffff
+    dw 0
+    db 0
+    ; access
+    ; 0x92=10010010 (binary format)
+    ; bit-41=1 (readable/writable)
+    ; 0 for read only, 1 for read and write
+    ; bit-42=0 (expansion direction)
+    ; 0 for the segment grows up, 1 for the segment grows down, 
+    ; bit-43=0 (1 for code segment, 0 for data segment)
+    db 0x92
+    db 0xcf
+    db 0
+
+; length of GDT
+Gdt32Len: equ $-Gdt32
+; pointer to GDT
+Gdt32Ptr:
+    ; limit (size of GDT)
+    dw Gdt32Len-1
+    ; base address of GDTs
+    dd Gdt32
+; pointer to IDT
+Idt32Ptr:
+    dw 0
+    dd 0
+
