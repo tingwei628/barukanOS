@@ -128,6 +128,7 @@ times (0x1be-($-$$)) db 0
     
     ; Boot Record signature
     ; here is the same as dw 0aa55h
+    ; little endian
     db 0x55
     db 0xaa
 

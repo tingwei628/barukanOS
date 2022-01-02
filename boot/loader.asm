@@ -213,6 +213,73 @@ PMEntry:
     mov es, ax
     mov ss, ax
     mov esp, 0x7c00
+
+SetupLongMode:
+    ; IA-32e pageing: CR0.PG = 1, CR4.PAE = 1, and IA32_EFER.LME = 1
+    ; which translates 48-bit linear addresses to 52-bit physical addresses.
+    ; initialize the paging structure (IA-32e paging model)
+    ; cld (clear direction flag, beginning from lowest to highest address )
+    cld
+    mov edi, 0x70000
+    ; set eax=0
+    xor eax, eax
+    ; 0x10000/4 = 4kb * 4 (total 4 tables(4kb))
+    mov ecx, 0x10000/4
+    ; write "eax" value into "edi" with "ecx" times
+    rep stosd
+    ; set the first entry in PML4
+    ; page map level4(PML4) table -> page directory pointer(PDP) table -> page directory(PD) table -> page(P) table -> physical address
+    ; PML4 table: each table has 4kb size and 512 entries, eech enrty has 8 bytes
+    ; PDP table: each table has 4kb size and 512 entries, eech enrty has 8 bytes
+    ; PD table: each table has 4kb size and 512 entries, eech enrty has 8 bytes
+    ; P table: each table has 4kb size and 512 entries, eech enrty has 8 bytes
+    ; (4kb = 4096 bytes = 512 * 8)
+    ; virtual address has "Page offset"
+    ; 4k pages (Page offset => bit-0 to bit-11 = 2^12 (=4k page size), 4-level page table): PML4T, PDPT. PDT and PT
+    ; 2m pages (Page offset => bit-0 to bit-20 = 2^21 (=2m page size), 3-level page table): PML4T, PDPT and PDT
+    ; 1g pages (Page offset => bit-0 to bit-29 = 2^30 (=1g page size), 2-level page table): PML4T, PDPT
+    ; NOTE: we use 1g pages in IA-32e paging model
+    ; 0x70000 is PML4 base address
+    ; 0x71007 = 1110001 0000 0000 0111 (binary format)
+    ; bit-0= 1 (P)
+    ; bit-1= 1 (R/W)
+    ; bit-2= 1 (U/S)
+    ; bit-12 to bit-31 = 1110001 = 0x71 ("page directory pointer table" base address)
+    mov dword[0x70000], 0x71007
+    ; 0x71000 is PDP base address
+    ; 10000111 = 1000 0111
+    ; bit-0= 1 (P)
+    ; bit-1= 1 (R/W)
+    ; bit-2= 1 (U/S)
+    ; bit-7= 1 (1 for 1g pages PDP table entry, 0 for 2m or 4k PDP table entry)
+    mov dword[0x71000], 10000111b
+
+    lgdt [Gdt64Ptr]
+    ; for supporting physical address to 2^36 bytes (=64 gb)
+    ; enable the bit-5 which is PAE(physical address extension) in CR4
+    mov eax, cr4
+    or eax, (1<<5)
+    mov cr4, eax
+    ; load CR3 with the base physical address of the PML4 (Level 4 Page Map)
+    ; the base physical address of PML4 = 0x70000
+    mov eax, 0x70000
+    mov cr3, eax
+
+    ; enable long mode by setting the LME flag (bit 8) in MSR 0xC0000080 (aka EFER)
+    ; LME (Long Mode Enable)
+    ; MSR number of IA32_EFER = 0xc0000080
+    mov ecx, 0xc0000080
+    rdmsr
+    or eax, (1<<8)
+    wrmsr
+    ; enable the paging
+    mov eax, cr0
+    or eax, (1<<31)
+    mov cr0, eax
+
+    jmp 8:LMEntry
+
+PrintCharInPM:
     ; print 'P' on screen
     ; the first position on screen is 0xb8000
     ; char = 'P', color = 0xa
@@ -223,10 +290,10 @@ PEnd:
     hlt
     jmp PEnd
 
-; start to define GDT (each entry has 8 bytes in GDT)
+; start to define GDT in protected mode (each entry has 8 bytes in GDT)
 ; it has only 3 entries in this course...
 ; (GDT can be up to 65536 bytes in length (8192 entries))
-; null null descriptor (the first entry in GDT)
+; null descriptor (the first entry in GDT)
 Gdt32:
     ; dq = 8 bytes
     dq 0
@@ -291,4 +358,59 @@ Gdt32Ptr:
 Idt32Ptr:
     dw 0
     dd 0
+
+[BITS 64]
+LMEntry:
+    mov rsp, 0x7c00
+
+PrintCharInLM:
+    mov byte[0xb8000], 'L'
+    mov byte[0xb8001], 0xa
+
+LEnd:
+    hlt
+    jmp LEnd
+
+; start to define GDT in long mode (each entry has 16 bytes in GDT)
+; it has only 2 entries in this course...
+; null descriptor (the first entry in GDT)
+Gdt64:
+    dq 0
+; code segment descriptor, offset 8 bytes from base address of GDT
+; (the 2nd entry in GDT)
+Code64:
+    ; limit low (bit-0 to bit-15)
+    dw 0
+    ; base low (bit-16 to bit-31)
+    ; code segement start at 0
+    dw 0
+    ; base middle (bit-32 to bit-39)
+    db 0
+    ; access
+    ; 0x98=10011000 (binary format)
+    ; bit-40=0 (access, used with virtual memory)
+    ; bit-41=0 (readable/writable)
+    ; 0 for execute only, 1 for read and execute
+    ; bit-42=0 (is conforming)
+    ; 0 for "not conforming"(only executed =privilege level field), 1 for conforming (can be executed <= privilege level field)
+    ; bit-43=1 (1 for code segment, 0 for data segment)
+    ; bit-44=1 (0 for "system", 1 for "code/data" descriptor)
+    ; bit-45 to bit-46 = 00 (privilege level, 00(Ring 0))
+    ; bit-47=1 (present bit, is the segment in memory, used with virtual memory)
+    db 0x98
+    ; granularity
+    ; 0x20=00100000 (binary format)
+    ; bit-48 to bit-51=0000 (limit high, bit-16 to bit-19)
+    ; bit-52=0 (reserved)
+    ; bit-53=1 (long mode, 1 for 64 bit)
+    ; bit-54=0 (segment type, 0 for 16 bit/ 1 for 32 bit)
+    ; bit-55=0 (granularity, 1 for 4kb, 0 for 1byte)
+    db 0x20
+    ; ; base high (bit-56 to bit-63)
+    db 0
+    
+Gdt64Len: equ $-Gdt64
+Gdt64Ptr: 
+    dw Gdt64Len-1
+    dd Gdt64
 
