@@ -34,7 +34,7 @@ start:
 LoadKernel:
     mov si, ReadPacket
     mov word[si], 0x10
-    ; number of sectors to read
+    ; number of sectors(kernel) to read
     mov word[si+2], 1
     ; load kernel start at 0x10000
     ; transfer buffer (16 bit segment:16 bit offset)
@@ -43,7 +43,8 @@ LoadKernel:
     ; address => 0x1000 * 16 + 0 = 0x10000
     mov word[si+4], 0
     mov word[si+6], 0x1000
-    mov dword[si+8], 1
+    ; LBA=3 is the start of kernel sector
+    mov dword[si+8], 3
     mov dword[si+0xc], 0
     mov dl, [DriveId]
     ; function code, 0x42 = Extended Read Sectors From Drive
@@ -363,6 +364,22 @@ Idt32Ptr:
 LMEntry:
     mov rsp, 0x7c00
 
+SetupKernel:
+    cld
+    ; since memory address below 0x100000 has some ranges reserved
+    ; so copy kernel from source to destination in memory
+    ; source address =0x10000
+    mov rdi, 0x200000
+    mov rsi, 0x10000
+    ; read 1 sectors, each sector has 512 bytes
+    ; times = 512 * 1 / 8 (qword)
+    mov rcx, 512 * 1/8
+    ; "rep": repeat "rcx" times
+    ; "movsq": move qword from address (R|E)SI to (R|E)DI.
+    rep movsq
+    ; kernel base address = 0x200000
+    jmp 0x200000
+
 PrintCharInLM:
     mov byte[0xb8000], 'L'
     mov byte[0xb8001], 0xa
@@ -413,4 +430,3 @@ Gdt64Len: equ $-Gdt64
 Gdt64Ptr: 
     dw Gdt64Len-1
     dd Gdt64
-

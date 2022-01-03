@@ -30,8 +30,8 @@ LoadLoader:
     mov si, ReadPacket
     ; size of Disk Address Packet (set this to 0x10)
     mov word[si], 0x10
-    ; number of sectors to read
-    mov word[si+2], 1
+    ; number of sectors(loader) to read
+    mov word[si+2], 2
     ; number of sectors to transfer
     ; transfer buffer (16 bit segment:16 bit offset)
     ; 16 bit offset=0x7e00 (stored in word[si+4])
@@ -41,6 +41,7 @@ LoadLoader:
     mov word[si+6], 0
     ; absolute number of the start of the sectors to be read
     ; LBA=1 (the 2nd sector) is the start of sector to be read
+    ; LBA=1 is start of loader sector
     ; lower part of 64-bit starting LBA
     mov dword[si+8], 1
     ; upper part of 64-bit starting LBA

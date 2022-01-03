@@ -10,14 +10,18 @@ CONV=notrunc
 # conv=notrunc (not truncate the output file and size remains unchanged)
 # seek=1 (skip the first sector which is boot.bin)
 # $(word 2,$^) to get 2nd argument, loader.bin
-boot.img: boot.bin loader.bin
+boot.img: boot.bin loader.bin kernel.bin
 	dd if=$< of=$@ bs=$(SECTOR_SIZE) count=1 conv=$(CONV)
-	dd if=$(word 2,$^) of=$@ bs=$(SECTOR_SIZE) count=1 seek=1 conv=$(CONV)
+	dd if=$(word 2,$^) of=$@ bs=$(SECTOR_SIZE) count=2 seek=1 conv=$(CONV)
+	dd if=$(word 3,$^) of=$@ bs=$(SECTOR_SIZE) count=1 seek=3 conv=$(CONV)
 
 boot.bin: boot.asm
 	$(ASM) -f bin $< -o $@
 
 loader.bin: loader.asm
+	$(ASM) -f bin $< -o $@
+
+kernel.bin: kernel.asm
 	$(ASM) -f bin $< -o $@
 
 # pdpe1gb is for 1G huge page support
