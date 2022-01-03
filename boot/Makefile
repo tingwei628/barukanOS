@@ -10,6 +10,7 @@ CONV=notrunc
 # conv=notrunc (not truncate the output file and size remains unchanged)
 # seek=1 (skip the first sector which is boot.bin)
 # $(word 2,$^) to get 2nd argument, loader.bin
+# there're 1 sector for boot, 2 sectors for loader, and 1 sector for kernel
 boot.img: boot.bin loader.bin kernel.bin
 	dd if=$< of=$@ bs=$(SECTOR_SIZE) count=1 conv=$(CONV)
 	dd if=$(word 2,$^) of=$@ bs=$(SECTOR_SIZE) count=2 seek=1 conv=$(CONV)
