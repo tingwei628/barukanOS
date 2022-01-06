@@ -18,6 +18,17 @@ start:
     ; copy offset to address rdi+8
     mov [rdi + 8], eax
 
+    ; set IDT entry for Timer
+    ; Timer(PIT) trigger IRQ0 of master
+    mov rax, Timer
+    ; the vector number of Timer is 32 in the PIC
+    ; since each entry has 16 bytes in IDT
+    add rdi, 32*16
+    mov [rdi], ax
+    shr rax, 16
+    mov [rdi + 6], ax
+    shr rax, 16
+    mov [rdi + 8], eax
 
     ; load Gdt64 to GDTR
     lgdt [Gdt64Ptr]
@@ -49,23 +60,172 @@ KernelEntry:
     mov byte[0xb8000], 'K'
     mov byte[0xb8001], 0xa
 
-    ; set rbx=0
-    xor rbx, rbx
-    ; divided by 0 to cause excetpion
-    div rbx
+    ; ; set rbx=0
+    ; xor rbx, rbx
+    ; ; divided by 0 to cause excetpion
+    ; div rbx
 
+; PIT(Programmable Interval Timer)
+; here we use only channel 0 
+InitPIT:
+    ; set al = 0011 0100
+    ; bit 0 = 0 (0 = 16-bit binary mode)
+    ; bit-1 to bit-3 = 010 (Mode 2, rate generator)
+    ; bit-4 to bit-5 = 11 (Access mode, lobyte/hibyte)
+    ; bit-6 to bit-7 = 00 (Channel 0)
+    mov al, (1 << 2) | (3 << 4)
+    ; out =  output to port
+    ; the address of mode command register is 0x43
+    ; "OUT imm8, AL" => output byte in al to I/O port address imm8
+    out 0x43, al
+    ; set interval value
+    ; count value = 1193182 times -> 11931 times
+    ; (1193182 / 100 = 11931)
+    mov ax, 11931
+    ; the address of data resgister of channel 0 = 0x40
+    ; write lower bytes of ax first, then write higher bytes of ax
+    ; write al
+    out 0x40, al
+    ; write ah
+    mov al, ah
+    out 0x40, al
+; PIC(Programmable Interrupt Controller)
+InitPIC:
+    ; initialise command word(ICW) 1=0x11
+    mov al, 0x11
+    ; master PIC - command register, i/o port = 0x20
+    out 0x20, al
+    ; Slave PIC - command register, i/o port = 0xa0
+    out 0xa0, al
+
+    ; ICW2: Master PIC vector offset
+    ; IRQ number=32 (user defined interrupt vector from 32 to 255)
+    ; starting vector of master is 32 (it has 8 IRQ in master)
+    mov al, 32
+    ; master PIC - data	register, i/o port = 0x21
+    out 0x21, al
+    ; ICW2: Slave PIC vector offset
+    ; starting vector of slave is 40 (it has 8 IRQ in slave)
+    mov al, 40
+    ; slave PIC - data register, i/o port = 0xa1
+    out 0xa1, al
+    
+    ; ICW3 => tell Master PIC that there is a slave PIC at IRQ2
+    ; (0000 0100 =4, bit-2 is set, IRQ2 is used)
+    mov al, 4
+    ; master PIC - data	register, i/o port = 0x21
+    out 0x21, al
+    ; ICW3 => tell Slave PIC its cascade identity
+    ; (0000 0010 =2, bit-1 is set, IRQ1 is used)
+    mov al, 2
+    ; slave PIC - data	register, i/o port = 0xa1
+    out 0xa1, al
+
+    ; ICW4 => Gives additional information about the environment.
+    ; selecting mode
+    mov al, 1
+    out 0x21, al
+    out 0xa1, al
+
+    ; masking all IRQs in master except IRQ0
+    ; (only IRQ0 of master which PIT used fire interrupt)
+    mov al, 11111110b
+    out 0x21, al
+    ; masking all IRQs of slave
+    mov al, 11111111b
+    out 0xa1, al
+
+    ; sti(set interrupt flag), enable interrupts
+    sti
 
 End:
     hlt
     jmp End
 
+; interrupt handler for "divided by 0"
 Handler0:
+    ; save the state of cpu when interrupt or exception occurs
+    push rax
+    push rbx  
+    push rcx
+    push rdx  	  
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
     mov byte[0xb8000], 'D'
     mov byte[0xb8001], 0xc
 
     ; stop kernel if error happened
     jmp End
+
+    ; restore the state of cpu when interrupt or exception is done
+    ; NOTE stack is LIFO
+    pop	r15
+    pop	r14
+    pop	r13
+    pop	r12
+    pop	r11
+    pop	r10
+    pop	r9
+    pop	r8
+    pop	rbp
+    pop	rdi
+    pop	rsi  
+    pop	rdx
+    pop	rcx
+    pop	rbx
+    pop	rax
+
     ; interrupt return (64-bit)
+    iretq
+
+; Timer Handler
+Timer:
+    push rax
+    push rbx  
+    push rcx
+    push rdx  	  
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov byte[0xb8020], 'T'
+    mov byte[0xb8021], 0xe
+    jmp End
+   
+    pop	r15
+    pop	r14
+    pop	r13
+    pop	r12
+    pop	r11
+    pop	r10
+    pop	r9
+    pop	r8
+    pop	rbp
+    pop	rdi
+    pop	rsi  
+    pop	rdx
+    pop	rcx
+    pop	rbx
+    pop	rax
+
     iretq
 
 Gdt64:
