@@ -35,6 +35,28 @@ start:
     ; load Idt64 to IDTR
     lidt [Idt64Ptr]
 
+; copy tss address to tss descriptor
+SetTss:
+    mov rax, Tss64Ptr
+    ; copy lower 16 bits of address to 3rd bytes of base of tss descriptor
+    mov [TssDesc + 2], ax
+    shr rax, 16
+    ; copy "bit-16 to bit-23" of address to 5th bytes of base of tss descriptor
+    mov [TssDesc + 4], al
+    shr rax, 8
+    ; copy "bit-24 to bit-31" of address to 8th bytes of base of tss descriptor
+    mov [TssDesc + 7], al
+    shr rax, 8
+    ; copy "bit-32 to bit-63" of address to 9th bytes of base of tss descriptor
+    mov [TssDesc + 8], eax
+    
+    ; load tss(task state segment) selector into task register 
+    ; offset = 0x20 = 32 bytes which is 5th entry(tss descriptor) in GDT
+    ; tss selector = 0x20
+    mov ax, 0x20
+    ; ltr, load r/m16 into task register
+    ltr ax
+
     ; since rsp=0x7c00
     ; code segment descriptor is 8 bytes offest from start of Gdt64
     push 8
@@ -147,7 +169,8 @@ InitPIC:
     push 0x7c00
     ; value(state of cpu) to load into rflags register (after iretq)
     ; set bit-1=1
-    push 0x2
+    ; enable interrupt
+    push 0x202
     ; code segement selector in Ring3 to load into cs register (after iretq)
     ; offset, 0x10 = 16 bytes, 3rd entry in GDT
     ; "| 3" (set RPL=11b which is Ring3)
@@ -272,6 +295,22 @@ Gdt64:
     dq 0x0020f80000000000
     ; Ring3 data segment scriptor (DPL: from 00 to 11)
     dq 0x0000f20000000000
+    ; tss descriptor
+TssDesc:
+    ; tss limit
+    dw Tss64Len-1
+    ; base: bit-16 to bi-31
+    dw 0
+    ; base: bit-32 to bit-39
+    db 0
+    ; Present=1, DPL = 00, type=01001 (64bit-tss)
+    db 0x89
+    db 0
+    ; base: bit-56 to bit-63
+    db 0
+    ; base: bit-64 to bit-95
+    ; reserve: bit-96 to bit-127
+    dq 0
 
 Gdt64Len: equ $-Gdt64
 
@@ -318,3 +357,15 @@ Idt64Ptr:
     dw Idt64Len-1
     ; pointer is 8 bytes here
     dq Idt64
+
+; Task State segment
+; The Task State Segment (TSS)
+Tss64Ptr:
+    dd 0
+    dq 0x150000
+    times 88 db 0
+    ; IOPB may get the value sizeof(TSS) (which is 104)
+    ; if you don't plan to use this io-bitmap further
+    dd Tss64Len
+
+Tss64Len: equ $-Tss64Ptr

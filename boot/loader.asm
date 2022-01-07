@@ -35,7 +35,7 @@ LoadKernel:
     mov si, ReadPacket
     mov word[si], 0x10
     ; number of sectors(kernel) to read
-    mov word[si+2], 9
+    mov word[si+2], 10
     ; load kernel start at 0x10000
     ; transfer buffer (16 bit segment:16 bit offset)
     ; 16 bit offset=0 (stored in word[si+4])
@@ -371,9 +371,9 @@ SetupKernel:
     ; source address =0x10000
     mov rdi, 0x200000
     mov rsi, 0x10000
-    ; read 9 sectors(kernel), each sector has 512 bytes
-    ; times = 512 * 9 / 8 (qword)
-    mov rcx, 512 * 9/8
+    ; read 10 sectors(kernel), each sector has 512 bytes
+    ; times = 512 * 10 / 8 (qword)
+    mov rcx, 512 * 10/8
     ; "rep": repeat "rcx" times
     ; "movsq": move qword from address (R|E)SI to (R|E)DI.
     rep movsq
