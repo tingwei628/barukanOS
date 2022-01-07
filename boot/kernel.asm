@@ -136,11 +136,46 @@ InitPIC:
     out 0xa1, al
 
     ; sti(set interrupt flag), enable interrupts
-    sti
+    ; sti
+
+    ; ss(stack segment) selector (after iretq)
+    ; offset (0x18=24 bytes) is 4th entry in GDT
+    ; "| 3" (set RPL=11b which is Ring3)
+    ; load "0x18 | 3" into stack segment register (which has CPL in bit-0 to bit-1)
+    push 0x18 | 3
+    ; 0x7c00 load into rsp (after iretq)
+    push 0x7c00
+    ; value(state of cpu) to load into rflags register (after iretq)
+    ; set bit-1=1
+    push 0x2
+    ; code segement selector in Ring3 to load into cs register (after iretq)
+    ; offset, 0x10 = 16 bytes, 3rd entry in GDT
+    ; "| 3" (set RPL=11b which is Ring3)
+    ; load "0x18 | 3" into code segment register  (which has CPL in bit-0 to bit-1)
+    push 0x10 | 3
+    ; UserEntry load into rip (after iretq)
+    push UserEntry
+    ; interrupt return jump from Ring0 to Ring3
+    iretq
 
 End:
     hlt
     jmp End
+
+; rip=UserEntry, jump here in Ring3
+UserEntry:
+    mov ax, cs
+    and al, 11b
+    ; is it in Ring3
+    cmp al, 3
+    jne UEnd
+
+    mov byte[0xb8010],'U'
+    mov byte[0xb8011],0xE
+
+UEnd:
+    ; no hlt in user mode
+    jmp UEnd
 
 ; interrupt handler for "divided by 0"
 Handler0:
@@ -231,8 +266,12 @@ Timer:
 Gdt64:
     ; null descriptor
     dq 0
-    ; cs descriptor is the same value as "Code64" in loader.asm
+    ; Ring0 cs descriptor is the same value as "Code64" in loader.asm
     dq 0x0020980000000000
+    ; Ring3 cs descriptor (DPL: from 00 to 11)
+    dq 0x0020f80000000000
+    ; Ring3 data segment scriptor (DPL: from 00 to 11)
+    dq 0x0000f20000000000
 
 Gdt64Len: equ $-Gdt64
 
