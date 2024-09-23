@@ -1,60 +1,53 @@
-[BITS 64]
-[ORG 0x200000]
+BITS 64
+ORG 0x200000
 
 start:
 
-    mov rdi, Idt64
-    mov rax, Handler0
-    ; set Handler0 as handler after triggering "divided by 0" (which is the first entry in IDT)
-    ; copy first part of offset (bit-0 to bit-15 in Handler0) to IDT
-    ; ax = 2 bytes
-    mov [rdi], ax
-    ; shift right 16 bit to get second part of offset (bit-48 to bit-63 in Handler0)
-    shr rax, 16
-    ; copy offset to address rdi+6
-    mov [rdi + 6], ax
-    ; shift right 16 bit to get third part of offset (bit-64 to bit-95 in Handler0)
-    shr rax, 16
-    ; copy offset to address rdi+8
-    mov [rdi + 8], eax
+    mov rdi, idt_64
+    mov rax, handler_divided_by_0
+    call set_handler
 
     ; set IDT entry for Timer
     ; Timer(PIT) trigger IRQ0 of master
-    mov rax, Timer
+    mov rax, handler_timer
     ; the vector number of Timer is 32 in the PIC
     ; since each entry has 16 bytes in IDT
-    add rdi, 32*16
-    mov [rdi], ax
-    shr rax, 16
-    mov [rdi + 6], ax
-    shr rax, 16
-    mov [rdi + 8], eax
+    mov rdi, idt_64 + 32*16
+    call set_handler
+
+    ; spurious_interrupt
+    ; the vector number of IRQ7 is 32 + 7
+    ; set IDT entry for IRQ7
+    mov rdi, idt_64 + 32*16 + 7*16
+    mov rax, set_irq7
+    call set_handler
+
 
     ; load Gdt64 to GDTR
-    lgdt [Gdt64Ptr]
+    lgdt [gdt_64_ptr]
     ; load Idt64 to IDTR
-    lidt [Idt64Ptr]
+    lidt [idt_64_ptr]
 
 ; copy tss address to tss descriptor
 SetTss:
-    mov rax, Tss64Ptr
+    mov rax, tss_64_ptr
     ; copy lower 16 bits of address to 3rd bytes of base of tss descriptor
-    mov [TssDesc + 2], ax
+    mov [tss_desc + 2], ax
     shr rax, 16
     ; copy "bit-16 to bit-23" of address to 5th bytes of base of tss descriptor
-    mov [TssDesc + 4], al
+    mov [tss_desc + 4], al
     shr rax, 8
     ; copy "bit-24 to bit-31" of address to 8th bytes of base of tss descriptor
-    mov [TssDesc + 7], al
+    mov [tss_desc + 7], al
     shr rax, 8
     ; copy "bit-32 to bit-63" of address to 9th bytes of base of tss descriptor
-    mov [TssDesc + 8], eax
+    mov [tss_desc + 8], eax
     
     ; load tss(task state segment) selector into task register 
     ; offset = 0x20 = 32 bytes which is 5th entry(tss descriptor) in GDT
     ; tss selector = 0x20
     mov ax, 0x20
-    ; ltr, load r/m16 into task register
+    ; ltr, load into task register
     ltr ax
 
     ; since rsp=0x7c00
@@ -66,29 +59,20 @@ SetTss:
     ; retf = far return
     ; retf => pop RIP, then pop CS
     ; CS:IP => RIP=KernelEntry, CS=8 => 8:KernelEntry
-    ; why add this prefix "db 0x48"
+    ; why add this prefix "db 0x48" (REX.W)
     ; The default operand size of retf is 32bits, and
     ; this will pop invalid data into rip and cs registers 
     ; since we pushed 64bits value on stack.
     ; in short, adjust operand size from 32 bits to 64 bits
-    ; Source: https://wiki.osdev.org/X86-64_Instruction_Encoding
-    ; In  "REX prefix" section,
-    ; 0x48 = 01001000b
-    ; Fixed bit pattern=0100b
-    ; W=1(1, a 64-bit operand size is used)
     retf
 
 KernelEntry:
-    mov byte[0xb8000], 'K'
-    mov byte[0xb8001], 0xa
-
-    ; ; set rbx=0
-    ; xor rbx, rbx
-    ; ; divided by 0 to cause excetpion
-    ; div rbx
+    ; mov byte[0xb8000], 'K'
+    ; mov byte[0xb8001], 0xa
 
 ; PIT(Programmable Interval Timer)
 ; here we use only channel 0 
+; https://wiki.osdev.org/Programmable_Interval_Timer
 InitPIT:
     ; set al = 0011 0100
     ; bit 0 = 0 (0 = 16-bit binary mode)
@@ -126,6 +110,7 @@ InitPIC:
     mov al, 32
     ; master PIC - data	register, i/o port = 0x21
     out 0x21, al
+
     ; ICW2: Slave PIC vector offset
     ; starting vector of slave is 40 (it has 8 IRQ in slave)
     mov al, 40
@@ -137,6 +122,7 @@ InitPIC:
     mov al, 4
     ; master PIC - data	register, i/o port = 0x21
     out 0x21, al
+
     ; ICW3 => tell Slave PIC its cascade identity
     ; (0000 0010 =2, bit-1 is set, IRQ1 is used)
     mov al, 2
@@ -144,7 +130,7 @@ InitPIC:
     out 0xa1, al
 
     ; ICW4 => Gives additional information about the environment.
-    ; selecting mode
+    ; selecting mode (8086)
     mov al, 1
     out 0x21, al
     out 0xa1, al
@@ -169,12 +155,12 @@ InitPIC:
     push 0x7c00
     ; value(state of cpu) to load into rflags register (after iretq)
     ; set bit-1=1
-    ; enable interrupt
+    ; enable interrupt (bit-9 =1)
     push 0x202
     ; code segement selector in Ring3 to load into cs register (after iretq)
     ; offset, 0x10 = 16 bytes, 3rd entry in GDT
     ; "| 3" (set RPL=11b which is Ring3)
-    ; load "0x18 | 3" into code segment register  (which has CPL in bit-0 to bit-1)
+    ; load "0x10 | 3" into code segment register  (which has CPL in bit-0 to bit-1)
     push 0x10 | 3
     ; UserEntry load into rip (after iretq)
     push UserEntry
@@ -187,185 +173,27 @@ End:
 
 ; rip=UserEntry, jump here in Ring3
 UserEntry:
-    mov ax, cs
-    and al, 11b
+    ; mov ax, cs
+    ; and al, 11b
     ; is it in Ring3
-    cmp al, 3
-    jne UEnd
+    ; cmp al, 3
+    ; jne UEnd
 
-    mov byte[0xb8010],'U'
-    mov byte[0xb8011],0xE
+    ; mov byte[0xb8010],'U'
+    ; mov byte[0xb8011],0xE
+
+    ; inc byte[0xb8010]
+    ; mov byte[0xb8011],0xE
+    ; jmp UserEntry
 
 UEnd:
     ; no hlt in user mode
     jmp UEnd
 
-; interrupt handler for "divided by 0"
-Handler0:
-    ; save the state of cpu when interrupt or exception occurs
-    push rax
-    push rbx  
-    push rcx
-    push rdx  	  
-    push rsi
-    push rdi
-    push rbp
-    push r8
-    push r9
-    push r10
-    push r11
-    push r12
-    push r13
-    push r14
-    push r15
+%include "boot/long_mode/gdt.asm"
+%include "boot/long_mode/idt.asm"
+%include "boot/long_mode/tss.asm"
+%include "boot/long_mode/print.asm"
+%include "boot/long_mode/handler.asm"
 
-    mov byte[0xb8000], 'D'
-    mov byte[0xb8001], 0xc
-
-    ; stop kernel if error happened
-    jmp End
-
-    ; restore the state of cpu when interrupt or exception is done
-    ; NOTE stack is LIFO
-    pop	r15
-    pop	r14
-    pop	r13
-    pop	r12
-    pop	r11
-    pop	r10
-    pop	r9
-    pop	r8
-    pop	rbp
-    pop	rdi
-    pop	rsi  
-    pop	rdx
-    pop	rcx
-    pop	rbx
-    pop	rax
-
-    ; interrupt return (64-bit)
-    iretq
-
-; Timer Handler
-Timer:
-    push rax
-    push rbx  
-    push rcx
-    push rdx  	  
-    push rsi
-    push rdi
-    push rbp
-    push r8
-    push r9
-    push r10
-    push r11
-    push r12
-    push r13
-    push r14
-    push r15
-
-    mov byte[0xb8020], 'T'
-    mov byte[0xb8021], 0xe
-    jmp End
-   
-    pop	r15
-    pop	r14
-    pop	r13
-    pop	r12
-    pop	r11
-    pop	r10
-    pop	r9
-    pop	r8
-    pop	rbp
-    pop	rdi
-    pop	rsi  
-    pop	rdx
-    pop	rcx
-    pop	rbx
-    pop	rax
-
-    iretq
-
-Gdt64:
-    ; null descriptor
-    dq 0
-    ; Ring0 cs descriptor is the same value as "Code64" in loader.asm
-    dq 0x0020980000000000
-    ; Ring3 cs descriptor (DPL: from 00 to 11)
-    dq 0x0020f80000000000
-    ; Ring3 data segment scriptor (DPL: from 00 to 11)
-    dq 0x0000f20000000000
-    ; tss descriptor
-TssDesc:
-    ; tss limit
-    dw Tss64Len-1
-    ; base: bit-16 to bi-31
-    dw 0
-    ; base: bit-32 to bit-39
-    db 0
-    ; Present=1, DPL = 00, type=01001 (64bit-tss)
-    db 0x89
-    db 0
-    ; base: bit-56 to bit-63
-    db 0
-    ; base: bit-64 to bit-95
-    ; reserve: bit-96 to bit-127
-    dq 0
-
-Gdt64Len: equ $-Gdt64
-
-
-Gdt64Ptr:
-    dw Gdt64Len-1
-    ; pointer is 8 bytes here
-    dq Gdt64
-
-; IDT (Interrupt descriptor table)
-Idt64:
-    ; %rep: invoke a multi-line macro multiple times
-    ; repeat this block with 256 times
-    ; so, there are 256 entries
-    ; the entries in the IDT are 16 bytes long (in long mode)
-    ; e.g. entry 1 = IDTR Offset + 16
-    %rep 256
-        ; offset: bit-0 to bit-15
-        ; 0000 0000 0000 0000
-        dw 0
-        ; selector to code segment descriptor in GDT
-        ; bit-16 to bit-31
-        ; 0000 0000 0000 1000 = 0x8 (which is offset of code segment descriptor in GDT)
-        dw 0x8
-        ; reserved (bit-32 to bit-39) = 0000 0000
-        db 0
-        ; 1000 1110
-        ; gate type(bit-40 to bit-43)= 1110 (1110 for interrupt gate,  1111 for trap gate)
-        ; 0(bit-44) = 0
-        ; dpl (bit-45 to bit-46) = 00 (Ring0)
-        ; present bit (bit-47) = 1
-        db 0x8e
-        ; offset: bit-48 to bit-63
-        dw 0
-        ; offset: bit-64 to bit-95 
-        dd 0
-        ; reserved: bit-96 to bit-128
-        dd 0
-    %endrep
-
-Idt64Len: equ $-Idt64
-
-Idt64Ptr:
-    dw Idt64Len-1
-    ; pointer is 8 bytes here
-    dq Idt64
-
-; Task State segment
-; The Task State Segment (TSS)
-Tss64Ptr:
-    dd 0
-    dq 0x150000
-    times 88 db 0
-    ; IOPB may get the value sizeof(TSS) (which is 104)
-    ; if you don't plan to use this io-bitmap further
-    dd Tss64Len
-
-Tss64Len: equ $-Tss64Ptr
+times (512 * 100 -($-$$)) db 0
