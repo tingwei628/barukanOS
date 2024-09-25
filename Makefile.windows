@@ -1,14 +1,16 @@
 # https://github.com/dockcross/dockcross?tab=readme-ov-file#usage
 DOCKCROSS = cross-linux-x64
 BASH = bash
-
 ASM=nasm
 QEMU=qemu-system-x86_64
+CC = gcc
+CFLAGS = -std=c11 -mcmodel=large -ffreestanding -fno-stack-protector -mno-red-zone -mgeneral-regs-only 
 SECTOR_SIZE=512
 CONV=notrunc
-
 BOOT_DIR = boot/
 BOOT_BINS = $(BOOT_DIR)boot.bin $(BOOT_DIR)loader.bin $(BOOT_DIR)kernel.bin
+KERNEL_DIR = kernel/
+KERNEL_OBJS = $(BOOT_DIR)kernel.o $(KERNEL_DIR)main.o $(KERNEL_DIR)idt.o
 
 $(BOOT_DIR)boot.img: $(BOOT_BINS)
 	$(DOCKCROSS) $(BASH) -c 'dd if=$< of=$@ bs=$(SECTOR_SIZE) count=1 conv=$(CONV)'
@@ -21,13 +23,24 @@ $(BOOT_DIR)boot.bin: $(BOOT_DIR)boot.asm
 $(BOOT_DIR)loader.bin: $(BOOT_DIR)loader.asm
 	$(DOCKCROSS) $(BASH) -c '$(ASM) -f bin $< -o $@'
 
-$(BOOT_DIR)kernel.bin: $(BOOT_DIR)kernel.asm
-	$(DOCKCROSS) $(BASH) -c '$(ASM) -f bin $< -o $@'
+$(BOOT_DIR)kernel.bin: $(KERNEL_DIR)kernel
+	$(DOCKCROSS) $(BASH) -c 'objcopy -O binary $^ $@'
+
+$(KERNEL_DIR)kernel: $(KERNEL_OBJS)
+	$(DOCKCROSS) $(BASH) -c 'ld -nostdlib -T $(KERNEL_DIR)linker.ld -o $@ $^'
+
+$(BOOT_DIR)kernel.o: $(BOOT_DIR)kernel.asm
+	$(DOCKCROSS) $(BASH) -c '$(ASM) -f elf64 $< -o $@'
+
+$(KERNEL_DIR)%.o: $(KERNEL_DIR)%.c
+	$(DOCKCROSS) $(BASH) -c '$(CC) $(CFLAGS) -o $@ -c $<'
 
 # pdpe1gb is for 1G huge page support
 qemu: $(BOOT_DIR)boot.img
+	@echo "qemu..."
 	$(QEMU) -cpu qemu64,pdpe1gb -drive format=raw,file=$<
 
 .PHONY:	clean
 clean: 
-	rm -f $(BOOT_DIR)*.bin $(BOOT_DIR)*.img
+	@echo "clean..."
+	rm -f **/*.bin **/*.img **/*.o $(KERNEL_DIR)kernel

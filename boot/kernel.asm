@@ -1,32 +1,11 @@
-BITS 64
-ORG 0x200000
+section .text
+extern kernal_main
+global start
 
 start:
 
-    mov rdi, idt_64
-    mov rax, handler_divided_by_0
-    call set_handler
-
-    ; set IDT entry for Timer
-    ; Timer(PIT) trigger IRQ0 of master
-    mov rax, handler_timer
-    ; the vector number of Timer is 32 in the PIC
-    ; since each entry has 16 bytes in IDT
-    mov rdi, idt_64 + 32*16
-    call set_handler
-
-    ; spurious_interrupt
-    ; the vector number of IRQ7 is 32 + 7
-    ; set IDT entry for IRQ7
-    mov rdi, idt_64 + 32*16 + 7*16
-    mov rax, set_irq7
-    call set_handler
-
-
     ; load Gdt64 to GDTR
     lgdt [gdt_64_ptr]
-    ; load Idt64 to IDTR
-    lidt [idt_64_ptr]
 
 ; copy tss address to tss descriptor
 SetTss:
@@ -49,26 +28,6 @@ SetTss:
     mov ax, 0x20
     ; ltr, load into task register
     ltr ax
-
-    ; since rsp=0x7c00
-    ; code segment descriptor is 8 bytes offest from start of Gdt64
-    push 8
-    push KernelEntry
-    db 0x48
-    ; load code segment descriptor into code segment register
-    ; retf = far return
-    ; retf => pop RIP, then pop CS
-    ; CS:IP => RIP=KernelEntry, CS=8 => 8:KernelEntry
-    ; why add this prefix "db 0x48" (REX.W)
-    ; The default operand size of retf is 32bits, and
-    ; this will pop invalid data into rip and cs registers 
-    ; since we pushed 64bits value on stack.
-    ; in short, adjust operand size from 32 bits to 64 bits
-    retf
-
-KernelEntry:
-    ; mov byte[0xb8000], 'K'
-    ; mov byte[0xb8001], 0xa
 
 ; PIT(Programmable Interval Timer)
 ; here we use only channel 0 
@@ -143,57 +102,37 @@ InitPIC:
     mov al, 11111111b
     out 0xa1, al
 
-    ; sti(set interrupt flag), enable interrupts
-    ; sti
 
-    ; ss(stack segment) selector (after iretq)
-    ; offset (0x18=24 bytes) is 4th entry in GDT
-    ; "| 3" (set RPL=11b which is Ring3)
-    ; load "0x18 | 3" into stack segment register (which has CPL in bit-0 to bit-1)
-    push 0x18 | 3
-    ; 0x7c00 load into rsp (after iretq)
-    push 0x7c00
-    ; value(state of cpu) to load into rflags register (after iretq)
-    ; set bit-1=1
-    ; enable interrupt (bit-9 =1)
-    push 0x202
-    ; code segement selector in Ring3 to load into cs register (after iretq)
-    ; offset, 0x10 = 16 bytes, 3rd entry in GDT
-    ; "| 3" (set RPL=11b which is Ring3)
-    ; load "0x10 | 3" into code segment register  (which has CPL in bit-0 to bit-1)
-    push 0x10 | 3
-    ; UserEntry load into rip (after iretq)
-    push UserEntry
-    ; interrupt return jump from Ring0 to Ring3
-    iretq
+    ; since rsp=0x7c00
+    ; code segment descriptor is 8 bytes offest from start of Gdt64
+    push 8
+    push KernelEntry
+    db 0x48
+    ; load code segment descriptor into code segment register
+    ; retf = far return
+    ; retf => pop RIP, then pop CS
+    ; CS:IP => RIP=KernelEntry, CS=8 => 8:KernelEntry
+    ; why add this prefix "db 0x48" (REX.W)
+    ; The default operand size of retf is 32bits, and
+    ; this will pop invalid data into rip and cs registers 
+    ; since we pushed 64bits value on stack.
+    ; in short, adjust operand size from 32 bits to 64 bits
+    retf
+  
+KernelEntry:
+    xor ax, ax
+    mov ss, ax
+
+    mov rsp, 0x200000
+    call kernal_main
+    sti
 
 End:
     hlt
     jmp End
 
-; rip=UserEntry, jump here in Ring3
-UserEntry:
-    ; mov ax, cs
-    ; and al, 11b
-    ; is it in Ring3
-    ; cmp al, 3
-    ; jne UEnd
-
-    ; mov byte[0xb8010],'U'
-    ; mov byte[0xb8011],0xE
-
-    ; inc byte[0xb8010]
-    ; mov byte[0xb8011],0xE
-    ; jmp UserEntry
-
-UEnd:
-    ; no hlt in user mode
-    jmp UEnd
-
 %include "boot/long_mode/gdt.asm"
-%include "boot/long_mode/idt.asm"
 %include "boot/long_mode/tss.asm"
 %include "boot/long_mode/print.asm"
-%include "boot/long_mode/handler.asm"
 
 times (512 * 100 -($-$$)) db 0

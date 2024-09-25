@@ -1,3 +1,4 @@
+section .data
 gdt_64:
     ; null descriptor
     dq 0

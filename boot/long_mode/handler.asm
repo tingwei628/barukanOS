@@ -1,5 +1,4 @@
 set_handler:
-    ; set Handler0 as handler after triggering "divided by 0" (which is the first entry in IDT)
     ; copy first part of offset (bit-0 to bit-15 in Handler0) to IDT
     ; ax = 2 bytes
     mov [rdi], ax
