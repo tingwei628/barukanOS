@@ -1,13 +1,14 @@
 ASM = nasm
 QEMU = qemu-system-x86_64
 CC = gcc
-CFLAGS = -std=c11 -mcmodel=large -ffreestanding -fno-stack-protector -mno-red-zone
+CFLAGS = -std=c11 -mcmodel=large -ffreestanding -fno-stack-protector -mno-red-zone -mgeneral-regs-only
 SECTOR_SIZE = 512
 CONV = notrunc
 BOOT_DIR = boot/
 BOOT_BINS = $(BOOT_DIR)boot.bin $(BOOT_DIR)loader.bin $(BOOT_DIR)kernel.bin
 KERNEL_DIR = kernel/
-KERNEL_OBJS = $(BOOT_DIR)kernel.o $(KERNEL_DIR)main.o $(KERNEL_DIR)idt.o
+KERNEL_OBJS = $(BOOT_DIR)kernel.o $(KERNEL_DIR)main.o $(KERNEL_DIR)idt.o \
+	$(KERNEL_DIR)string.o $(KERNEL_DIR)memory.o $(KERNEL_DIR)print.o $(KERNEL_DIR)debug.o
 
 # bs=512 (sector size=512 bytes)
 # count=1 (write 1 sector)

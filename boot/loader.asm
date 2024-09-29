@@ -19,10 +19,10 @@ call test_A20
 SetVideoMode:
     mov ax, 3
     int 0x10
-    mov si, Message
-    mov cx, MessageLen
-    call print_screen_string16
-    call clear_screen_string16
+    ; mov si, Message
+    ; mov cx, MessageLen
+    ; call print_screen_string16
+    ; call clear_screen_string16
 
 
 ; setup before entering protected mode (32-bit)
@@ -83,10 +83,10 @@ PMEntry:
     mov esp, 0x7c00
 
 
-    mov esi, Message32
-    mov ecx, Message32Len
-    call print_screen_string32
-    call clear_screen_string32
+    ; mov esi, Message32
+    ; mov ecx, Message32Len
+    ; call print_screen_string32
+    ; call clear_screen_string32
 
 SetupLongMode:
     ; IA-32e pageing: CR0.PG = 1, CR4.PAE = 1, and IA32_EFER.LME = 1
@@ -163,10 +163,10 @@ BITS 64
 LMEntry:
     mov rsp, 0x7c00
 
-    mov rsi, Message64
-    mov rcx, Message64Len
-    call print_screen_string64
-    call clear_screen_string64
+    ; mov rsi, Message64
+    ; mov rcx, Message64Len
+    ; call print_screen_string64
+    ; call clear_screen_string64
 
 SetupKernel:
     cld

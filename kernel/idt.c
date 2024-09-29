@@ -99,10 +99,6 @@ void handler(TrapFrame *tf)
 
 void trap(TrapFrame *tf) {
     // Simulate display update
-    volatile uint8_t *video_memory = (uint8_t *)0xb8010;
-    *video_memory += 1;        // Increment character at address 0xb8010
-    *(video_memory + 1) = 0xe; // Set color attribute
-
     // Call the external handler
     handler(tf);
 }

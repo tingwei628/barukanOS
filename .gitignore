@@ -58,3 +58,4 @@ Mkfile.old
 dkms.conf
 
 .vscode/
+kernel/kernel
