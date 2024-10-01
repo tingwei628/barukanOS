@@ -3,24 +3,27 @@ extern kernal_main
 global start
 
 start:
-
+    ; load high memory location
+    mov rax, gdt_64_ptr
     ; load Gdt64 to GDTR
-    lgdt [gdt_64_ptr]
+    lgdt [rax]
 
 ; copy tss address to tss descriptor
 SetTss:
     mov rax, tss_64_ptr
+    ; tss_desc at high memory location
+    mov rdi, tss_desc
     ; copy lower 16 bits of address to 3rd bytes of base of tss descriptor
-    mov [tss_desc + 2], ax
+    mov [rdi + 2], ax
     shr rax, 16
     ; copy "bit-16 to bit-23" of address to 5th bytes of base of tss descriptor
-    mov [tss_desc + 4], al
+    mov [rdi + 4], al
     shr rax, 8
     ; copy "bit-24 to bit-31" of address to 8th bytes of base of tss descriptor
-    mov [tss_desc + 7], al
+    mov [rdi + 7], al
     shr rax, 8
     ; copy "bit-32 to bit-63" of address to 9th bytes of base of tss descriptor
-    mov [tss_desc + 8], eax
+    mov [rdi + 8], eax
     
     ; load tss(task state segment) selector into task register 
     ; offset = 0x20 = 32 bytes which is 5th entry(tss descriptor) in GDT
@@ -105,8 +108,10 @@ InitPIC:
 
     ; since rsp=0x7c00
     ; code segment descriptor is 8 bytes offest from start of Gdt64
+    ; KernelEntry is now at high memory location
+    mov rax, KernelEntry
     push 8
-    push KernelEntry
+    push rax
     db 0x48
     ; load code segment descriptor into code segment register
     ; retf = far return
@@ -120,12 +125,9 @@ InitPIC:
     retf
   
 KernelEntry:
-    xor ax, ax
-    mov ss, ax
-
-    mov rsp, 0x200000
+    ; stack is at high memory location
+    mov rsp, 0xffff800000200000
     call kernal_main
-    sti
 
 End:
     hlt

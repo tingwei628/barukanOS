@@ -97,17 +97,20 @@ SetupLongMode:
     mov edi, 0x70000
     ; set eax=0
     xor eax, eax
-    ; 0x10000/4 = 4kb * 4 (total 4 tables(4kb))
+    ; 0x10000 = 64kb
+    ; 0x10000/4 = 16kb (if total 4 tables)
+    ; each table is 4kb size
     mov ecx, 0x10000/4
     ; write "eax" value into "edi" with "ecx" times
     rep stosd
     ; set the first entry in PML4
     ; page map level4(PML4) table -> page directory pointer(PDP) table -> page directory(PD) table -> page(P) table -> physical address
-    ; PML4 table: each table has 4kb size and 512 entries, eech enrty has 8 bytes
-    ; PDP table: each table has 4kb size and 512 entries, eech enrty has 8 bytes
-    ; PD table: each table has 4kb size and 512 entries, eech enrty has 8 bytes
-    ; P table: each table has 4kb size and 512 entries, eech enrty has 8 bytes
+    ; PML4 table: each table has 4kb size and 512 entries, each enrty has 8 bytes
+    ; PDP table: each table has 4kb size and 512 entries, each enrty has 8 bytes
+    ; PD table: each table has 4kb size and 512 entries, each enrty has 8 bytes
+    ; P table: each table has 4kb size and 512 entries, each enrty has 8 bytes
     ; (4kb = 4096 bytes = 512 * 8)
+    ; 1 PML4 table has 512 entries which map to 512 PDP tables individually
     ; virtual address has "Page offset"
     ; 4k pages (Page offset => bit-0 to bit-11 = 2^12 (=4k page size), 4-level page table): PML4T, PDPT. PDT and PT
     ; 2m pages (Page offset => bit-0 to bit-20 = 2^21 (=2m page size), 3-level page table): PML4T, PDPT and PDT
@@ -115,18 +118,38 @@ SetupLongMode:
     ; NOTE: we use 1g pages in IA-32e paging model
     ; 0x70000 is PML4 base address
     ; 0x71007 = 1110001 0000 0000 0111 (binary format)
+    ; 0x71003 = 1110001 0000 0000 0011 (binary format)
     ; bit-0= 1 (P)
     ; bit-1= 1 (R/W)
-    ; bit-2= 1 (U/S)
+    ; bit-2= 0 (U/S)
     ; bit-12 to bit-31 = 1110001 = 0x71 ("page directory pointer table" base address)
-    mov dword[0x70000], 0x71007
+    ; set only first entry in PML4
+    mov dword[0x70000], 0x71003
     ; 0x71000 is PDP base address
     ; 10000111 = 1000 0111
     ; bit-0= 1 (P)
     ; bit-1= 1 (R/W)
-    ; bit-2= 1 (U/S)
+    ; bit-2= 0 (U/S)
     ; bit-7= 1 (1 for 1g pages PDP table entry, 0 for 2m or 4k PDP table entry)
-    mov dword[0x71000], 10000111b
+    ; set only first entry in PDP (base address is 0x71000)
+    mov dword[0x71000], 10000011b
+    ; for high canonical range 
+    ; 0xffff800000000000 is lowest part of high canonical range (0xffff800000000000 ~ 0xffffffffffffffff)
+    ; >> 39 move to PML4 to lower bits
+    mov eax, (0xffff800000000000 >> 39)
+    ; 0x1ff = 0000 0000 0001 1111 1111
+    ; "and" to get lower 9 bits and save it to eax
+    and eax, 0x1ff
+    ; now eax is PML4 part of virtual address of 0xffff800000000000
+    ; set nth entry in PML4 (n = eax, each entry is 8 bytes)
+    mov dword[0x70000 + eax * 8], 0x72003
+    ; bit-0= 1 (P)
+    ; bit-1= 1 (R/W)
+    ; bit-2= 0 (U/S)
+    ; bit-7= 1
+    ; set first entry (index = 0) in another PDP table (base address is 0x72000)
+    ; PDP index = 0 from 0xffff800000000000
+    mov dword[0x72000], 10000011b
 
     lgdt [gdt_64_ptr]
     ; for supporting physical address to 2^36 bytes (=64 gb)
@@ -181,8 +204,10 @@ SetupKernel:
     ; "rep": repeat "rcx" times
     ; "movsq": move qword from address (R|E)SI to (R|E)DI.
     rep movsq
-    ; kernel base address = 0x200000
-    jmp 0x200000
+    
+    ; kernel base address = 0xffff800000200000 at high memory location
+    mov rax, 0xffff800000200000
+    jmp rax
 
 %include "boot/long_mode/print.asm"
 

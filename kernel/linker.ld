@@ -2,7 +2,7 @@ ENTRY(start)
 
 SECTIONS
 {
-    . = 0x200000;  /* kernel base address */
+    . = 0xffff800000200000;  /* kernel base address at high memory location */
     .text : {
         *(.text)
     }
