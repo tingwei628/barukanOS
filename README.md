@@ -1,6 +1,6 @@
 # barukanOS
 
-### Feature
+### Features
 
 - Support for long mode
 - Interrupt and exception handling
