@@ -74,6 +74,19 @@ uint8_t read_isr(void)
     return al;
 }
 
+void load_cr3(uint64_t map)
+{
+    __asm__ __volatile__ (
+        ".intel_syntax noprefix\n"
+        "mov rax, %[val]\n"
+        "mov cr3, rax\n"
+        ".att_syntax prefix\n" 
+        :
+        : [val] "r" (map)
+        : "rax"
+    );
+}
+
 void handler(TrapFrame *tf)
 {
     uint8_t isr_value;

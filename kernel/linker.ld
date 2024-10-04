@@ -19,4 +19,6 @@ SECTIONS
     .bss : {
         *(.bss)
     }
+
+    PROVIDE(end = .); /* end symobol of end of kenerl */
 }

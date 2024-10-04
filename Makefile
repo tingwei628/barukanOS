@@ -8,7 +8,8 @@ BOOT_DIR = boot/
 BOOT_BINS = $(BOOT_DIR)boot.bin $(BOOT_DIR)loader.bin $(BOOT_DIR)kernel.bin
 KERNEL_DIR = kernel/
 KERNEL_OBJS = $(BOOT_DIR)kernel.o $(KERNEL_DIR)main.o $(KERNEL_DIR)idt.o \
-	$(KERNEL_DIR)string.o $(KERNEL_DIR)memory.o $(KERNEL_DIR)print.o $(KERNEL_DIR)debug.o
+	$(KERNEL_DIR)string.o $(KERNEL_DIR)memory.o $(KERNEL_DIR)print.o $(KERNEL_DIR)debug.o \
+	$(KERNEL_DIR)vm.o
 
 # bs=512 (sector size=512 bytes)
 # count=1 (write 1 sector)

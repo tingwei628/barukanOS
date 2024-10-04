@@ -72,7 +72,7 @@ static void write_screen(const uint8_t *buffer, uint32_t size, ScreenBuffer *str
 {
     int32_t column = strbuf->column;
     int32_t row = strbuf->row;
-    uint8_t *buf = VGA_START;
+    uint8_t *buf = (uint8_t*)P2V(VGA_START); // vga physical memort start to virtual memort start
     
     for (int32_t i = 0; i < size; i++)
     {

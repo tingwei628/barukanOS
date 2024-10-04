@@ -44,3 +44,30 @@ end_test_A20:
     pop ds
     popa
     ret
+
+get_memory_info:
+    pusha
+    mov eax, 0xe820 ; 
+    mov edx, 0x534d4150 ; SMAP
+    mov ecx, 20 ; size of each entry is 20 bytes
+    mov dword[0x9000], 0 ; the number of entries will be stored at 0x9000
+    mov edi, 0x9008 ; entries stored start at 0x9008
+    xor ebx, ebx ; ebx must be 0 to start
+    int 0x15
+    jc get_mem_done
+
+get_mem_info_loop:
+    add edi, 20 ; next entry start
+    inc dword[0x9000] ; add entry number
+    test ebx, ebx
+    jz get_mem_done ; test is end of memeory map
+
+    mov eax, 0xe820
+    mov edx, 0x534d4150 ; SMAP
+    mov ecx, 20 ; size of each entry is 20 bytes
+    int 0x15
+    jnc get_mem_info_loop
+
+get_mem_done:
+    popa
+    ret

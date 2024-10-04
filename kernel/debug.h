@@ -5,9 +5,9 @@
 
 #define ASSERT(e) do {                      \
         if (!(e))                           \
-            error_check(__FILE__,__LINE__); \
+            error_check(__FILE__,__func__,__LINE__); \
 } while (0) 
 
-void error_check(uint8_t *file, uint64_t line);
+void error_check(uint8_t *file, uint8_t const *func, uint64_t line);
 
 #endif

@@ -12,6 +12,9 @@ LoadKernel:
     int 0x13
     jc  ReadError
 
+
+; get memory info
+call get_memory_info
 ; test whether A20 line is enabled or not
 call test_A20
 
@@ -204,7 +207,7 @@ SetupKernel:
     ; "rep": repeat "rcx" times
     ; "movsq": move qword from address (R|E)SI to (R|E)DI.
     rep movsq
-    
+
     ; kernel base address = 0xffff800000200000 at high memory location
     mov rax, 0xffff800000200000
     jmp rax

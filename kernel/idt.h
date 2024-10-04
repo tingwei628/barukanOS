@@ -77,5 +77,6 @@ void init_idt(void);
 void eoi(void);
 void load_idt(IdtPtr *ptr);
 uint8_t read_isr(void);
+void load_cr3(uint64_t map);
 
 #endif
