@@ -12,6 +12,51 @@ LoadKernel:
     int 0x13
     jc  ReadError
 
+; read user program in examples
+LoadUser1:
+    mov si,ReadPacket
+    mov word[si], 0x10
+    mov word[si+2], 10
+    ; 16 bit segment=0x2000
+    ; address => 0x2000 * 16 + 0 = 0x20000,  load user1 start at 0x20000
+    mov word[si+4], 0
+    mov word[si+6], 0x2000 ; start
+    mov dword[si+8], 106 ; LBA
+    mov dword[si+0xc], 0
+    mov dl, [DriveId]
+    mov ah,0x42
+    int 0x13
+    jc  ReadError
+
+LoadUser2:
+    mov si, ReadPacket
+    mov word[si], 0x10
+    mov word[si+2], 10
+    ; 16 bit segment=0x3000
+    ; address => 0x3000 * 16 + 0 = 0x30000,  load user2 start at 0x30000
+    mov word[si+4], 0
+    mov word[si+6], 0x3000
+    mov dword[si+8], 116 ; LBA
+    mov dword[si+0xc], 0
+    mov dl, [DriveId]
+    mov ah, 0x42
+    int 0x13
+    jc  ReadError
+
+LoadUser3:
+    mov si, ReadPacket
+    mov word[si], 0x10
+    mov word[si+2], 10
+    mov word[si+4], 0
+    mov word[si+6], 0x4000
+    ; 16 bit segment=0x4000
+    ; address => 0x4000 * 16 + 0 = 0x40000,  load user3 start at 0x40000
+    mov dword[si+8], 126 ; LBA
+    mov dword[si+0xc], 0
+    mov dl, [DriveId]
+    mov ah, 0x42
+    int 0x13
+    jc  ReadError
 
 ; get memory info
 call get_memory_info
@@ -57,6 +102,7 @@ SetupProtectedMode:
 ReadError:
 NotAvailable:
 End:
+    hlt
     jmp $
 
 %include "boot/real_mode/print.asm"
@@ -64,6 +110,7 @@ End:
 %include "boot/real_mode/gdt.asm"
 
 DriveId:    db 0
+ReadPacket: times 16 db 0
 Message:    db "Text mode is set"
 MessageLen: equ $-Message
 DiskReadPacket:
@@ -179,6 +226,11 @@ SetupLongMode:
 
     jmp 8:LMEntry
 
+PEnd:
+    hlt
+    jmp PEnd
+
+
 %include "boot/protected_mode/gdt.asm"
 %include "boot/protected_mode/print.asm"
 
@@ -212,10 +264,11 @@ SetupKernel:
     mov rax, 0xffff800000200000
     jmp rax
 
+LEnd:
+    hlt
+    jmp LEnd
+
 %include "boot/long_mode/print.asm"
 
 Message64:    db "Long mode is set"
 Message64Len: equ $-Message64
-
-
-times (512 * 5 -($-$$)) db 0

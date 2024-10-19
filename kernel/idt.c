@@ -1,7 +1,11 @@
 #include "idt.h"
+#include "process.h"
+#include "syscall.h"
+#include "print.h"
 
 static IdtPtr idt_pointer;
 static IdtEntry vectors[256];
+static uint64_t ticks;
 
 static void init_idt_entry(IdtEntry *entry, uint64_t addr, uint8_t attribute)
 {
@@ -12,6 +16,11 @@ static void init_idt_entry(IdtEntry *entry, uint64_t addr, uint8_t attribute)
     entry->high = (uint32_t)(addr>>32);
 }
 
+static void timer_handler(void)
+{
+    ticks++;
+    wake_up(-1);
+}
 
 void init_idt(void)
 {
@@ -35,6 +44,7 @@ void init_idt(void)
     init_idt_entry(&vectors[19],(uint64_t)vector19,INT_GATE_FLAG);
     init_idt_entry(&vectors[32],(uint64_t)vector32,INT_GATE_FLAG);
     init_idt_entry(&vectors[39],(uint64_t)vector39,INT_GATE_FLAG);
+    init_idt_entry(&vectors[0x80],(uint64_t)sysint,0xee);
 
     idt_pointer.limit = sizeof(vectors)-1;
     idt_pointer.addr = (uint64_t)vectors;
@@ -77,13 +87,54 @@ uint8_t read_isr(void)
 void load_cr3(uint64_t map)
 {
     __asm__ __volatile__ (
-        ".intel_syntax noprefix\n"
-        "mov rax, %[val]\n"
-        "mov cr3, rax\n"
-        ".att_syntax prefix\n" 
+        "movq %0, %%rax\n\t"  // set rax = map
+        "movq %%rax, %%cr3\n\t" // set cr3 = rax
         :
-        : [val] "r" (map)
-        : "rax"
+        : "r"(map)
+        : "%rax"
+    );
+}
+
+uint64_t read_cr2(void)
+{
+    uint64_t cr2;
+    __asm__ __volatile__ (
+        "movq %%cr2, %0\n\t"
+        : "=r"(cr2)
+    );
+    return cr2;
+}
+
+uint64_t get_ticks(void)
+{
+    return ticks;
+}
+
+__attribute__((naked)) void swap(uint64_t *prev, uint64_t next)
+{
+        __asm__ __volatile__ (
+        "pushq %rbx\n\t"
+        "pushq %rbp\n\t"
+        "pushq %r12\n\t"
+        "pushq %r13\n\t"
+        "pushq %r14\n\t"
+        "pushq %r15\n\t"
+        "movq %rsp, (%rdi)\n\t"
+        "movq %rsi, %rsp\n\t"
+        "popq %r15\n \t"
+        "popq %r14\n\t"
+        "popq %r13\n\t"
+        "popq %r12\n\t"
+        "popq %rbp\n\t"
+        "popq %rbx\n\t"
+        "ret\n\t"
+    );
+}
+  __attribute__((naked)) void pstart(TrapFrame *tf)
+{
+    __asm__ __volatile__ (
+        "movq %rdi, %rsp\n\t"
+        "jmp TrapReturn\n\t"
     );
 }
 
@@ -94,6 +145,7 @@ void handler(TrapFrame *tf)
     switch (tf->trapno) 
     {
         case 32:
+            timer_handler();
             eoi();
             break;
             
@@ -104,123 +156,160 @@ void handler(TrapFrame *tf)
                 eoi();
             }
             break;
+        
+        case 0x80:
+            system_call(tf);
+            break;
 
         default:
-            while (1) { }
+            // check if trap or interrupt happened in kernel mode or user mode
+            // ring0 = 000 (kernel mode)
+            // ring3 = 011 (user mode)
+            // user mode
+            if (tf->cs & 3)
+            {
+                printk("Exception is %d in user mode\n", tf->trapno);
+                exit();
+            }
+            // kernel mode
+            else
+            {
+                printk("Exception is %d in kernel mode\n", tf->trapno);
+                while(1) {}
+            }
+    }
+
+    if (tf->trapno == 32)
+    {   
+        yield();
     }
 }
 
-void trap(TrapFrame *tf) {
-    // Simulate display update
-    // Call the external handler
-    handler(tf);
-}
-
+//Divide by 0
 __attribute__ ((interrupt)) void vector0(TrapFrame *tf) {
     tf->trapno = 0;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+//Reserved
 __attribute__ ((interrupt)) void vector1(TrapFrame *tf) {
     tf->trapno = 1;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+//NMI Interrupt
 __attribute__ ((interrupt)) void vector2(TrapFrame *tf) {
     tf->trapno = 2;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+//Breakpoint (INT3)
 __attribute__ ((interrupt)) void vector3(TrapFrame *tf) {
     tf->trapno = 3;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+//Overflow (INTO)
 __attribute__ ((interrupt)) void vector4(TrapFrame *tf) {
     tf->trapno = 4;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+//Bounds range exceeded (BOUND)
 __attribute__ ((interrupt)) void vector5(TrapFrame *tf) {
     tf->trapno = 5;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+//Invalid opcode (UD2)
 __attribute__ ((interrupt)) void vector6(TrapFrame *tf) {
     tf->trapno = 6;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+//Device not available (WAIT/FWAIT)
 __attribute__ ((interrupt)) void vector7(TrapFrame *tf) {
     tf->trapno = 7;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
 
 
 // errorcode from system
+// Double fault
 __attribute__ ((interrupt)) void vector8(TrapFrame *tf, uint64_t errorcode) {
      tf->trapno = 8;
      tf->errorcode = errorcode;
-    trap(tf);
+    handler(tf);
 }
+//Invalid TSS
 __attribute__ ((interrupt)) void vector10(TrapFrame *tf, uint64_t errorcode) {
      tf->trapno = 10;
      tf->errorcode = errorcode;
-    trap(tf);
+    handler(tf);
 }
+//Segment not present
 __attribute__ ((interrupt)) void vector11(TrapFrame *tf, uint64_t errorcode) {
      tf->trapno = 11;
      tf->errorcode = errorcode;
-    trap(tf);
+    handler(tf);
 }
+//Stack-segment fault
 __attribute__ ((interrupt)) void vector12(TrapFrame *tf, uint64_t errorcode) {
      tf->trapno = 12;
      tf->errorcode = errorcode;
-    trap(tf);
+    handler(tf);
 }
+
+//General protection fault
 __attribute__ ((interrupt)) void vector13(TrapFrame *tf, uint64_t errorcode) {
      tf->trapno = 13;
      tf->errorcode = errorcode;
-    trap(tf);
+    handler(tf);
 }
+
+//Page fault
 __attribute__ ((interrupt)) void vector14(TrapFrame *tf, uint64_t errorcode) {
      tf->trapno = 14;
      tf->errorcode = errorcode;
-    trap(tf);
+    handler(tf);
 }
+//Alignment check
 __attribute__ ((interrupt)) void vector17(TrapFrame *tf, uint64_t errorcode) {
      tf->trapno = 17;
      tf->errorcode = errorcode;
-    trap(tf);
+    handler(tf);
 }
-
+//x87 FPU error
 __attribute__ ((interrupt)) void vector16(TrapFrame *tf) {
     tf->trapno = 16;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+//Machine check
 __attribute__ ((interrupt)) void vector18(TrapFrame *tf) {
     tf->trapno = 18;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+//SIMD Floating-Point Exception
 __attribute__ ((interrupt)) void vector19(TrapFrame *tf) {
     tf->trapno = 19;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
 // timer interrupt vector
 __attribute__ ((interrupt)) void vector32(TrapFrame *tf) {
     tf->trapno = 32;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
 __attribute__ ((interrupt)) void vector39(TrapFrame *tf) {
     tf->trapno = 39;
     tf->errorcode = 0;
-    trap(tf);
+    handler(tf);
 }
+
 // vector9 is reserved
 // vector15 is reserved
 // vector20 is reserved

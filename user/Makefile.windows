@@ -1,0 +1,27 @@
+# https://github.com/dockcross/dockcross?tab=readme-ov-file#usage
+DOCKCROSS = cross-linux-x64
+BASH = bash
+ASM = nasm
+CC = gcc
+CFLAGS = -std=c11 -mcmodel=large -ffreestanding -fno-stack-protector -mno-red-zone -g 
+ASMFLAGS = -f elf64 -g -F dwarf
+AR = ar
+USER_DIR = user/
+USER_LIB_DIR = $(USER_DIR)lib/
+USER_OBJS = $(USER_LIB_DIR)lib.o $(USER_LIB_DIR)print.o
+
+lib: $(USER_LIB_DIR)lib.a
+	@echo "end of build user lib..."
+
+$(USER_LIB_DIR)lib.a: $(USER_OBJS)
+	$(DOCKCROSS) $(BASH) -c '$(AR) -rcs $@ $^'
+
+$(USER_LIB_DIR)%.o: $(USER_LIB_DIR)%.c
+	$(DOCKCROSS) $(BASH) -c '$(CC) $(CFLAGS) -o $@ -c $<'
+
+$(USER_LIB_DIR)lib.o: $(USER_LIB_DIR)lib.asm
+	$(DOCKCROSS) $(BASH) -c '$(ASM) $(ASMFLAGS) $< -o $@'
+
+.PHONY:	clean
+clean: 
+	rm -f $(USER_DIR)*.o $(USER_LIB_DIR)*.o $(USER_LIB_DIR)*.a

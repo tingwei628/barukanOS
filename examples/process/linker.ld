@@ -3,7 +3,8 @@ ENTRY(start)
 
 SECTIONS
 {
-    . = 0xffff800000200000;  /* kernel base address at high memory location */
+    . = 0x400000;
+	
     .text : {
         *(.text)
     }
@@ -20,6 +21,4 @@ SECTIONS
     .bss : {
         *(.bss)
     }
-
-    PROVIDE(end = .); /* end symobol of end of kenerl */
 }

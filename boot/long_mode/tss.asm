@@ -1,5 +1,4 @@
 ; Task State segment
-
 tss_64_ptr:
     dd 0
     dq 0xffff800000190000 ; at high memory location

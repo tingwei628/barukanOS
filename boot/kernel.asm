@@ -1,3 +1,6 @@
+%include "boot/long_mode/gdt.asm"
+%include "boot/long_mode/tss.asm"
+
 section .text
 extern kernal_main
 global start
@@ -133,8 +136,4 @@ End:
     hlt
     jmp End
 
-%include "boot/long_mode/gdt.asm"
-%include "boot/long_mode/tss.asm"
-%include "boot/long_mode/print.asm"
-
-times (512 * 100 -($-$$)) db 0
+; %include "boot/long_mode/print.asm"

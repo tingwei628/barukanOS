@@ -68,8 +68,9 @@ static int32_t read_string(uint8_t *buffer, uint32_t position, const uint8_t *sr
     return index;
 }
 
-static void write_screen(const uint8_t *buffer, uint32_t size, ScreenBuffer *strbuf, uint8_t color)
+void write_screen(const uint8_t *buffer, int32_t size, uint8_t color)
 {
+    ScreenBuffer *strbuf = &screen_buffer;
     int32_t column = strbuf->column;
     int32_t row = strbuf->row;
     uint8_t *buf = (uint8_t*)P2V(VGA_START); // vga physical memort start to virtual memort start
@@ -115,7 +116,7 @@ static void write_screen(const uint8_t *buffer, uint32_t size, ScreenBuffer *str
 uint32_t printk(const uint8_t *format, ...)
 {
     uint8_t buffer[1024];
-    uint32_t buffer_size = 0;
+    int32_t buffer_size = 0;
     int64_t integer = 0;
     uint8_t *string = 0;
 
@@ -159,7 +160,7 @@ uint32_t printk(const uint8_t *format, ...)
         }     
     }
 
-    write_screen(buffer, buffer_size, &screen_buffer, COLOR_WHITE);
+    write_screen(buffer, buffer_size, COLOR_WHITE);
     va_end(args);
 
     return buffer_size;

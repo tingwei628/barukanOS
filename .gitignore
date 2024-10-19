@@ -58,4 +58,13 @@ Mkfile.old
 dkms.conf
 
 .vscode/
+kernel/kernel.elf
 kernel/kernel
+
+examples/**
+!examples/**/
+!examples/**/*.c
+!examples/**/*.ld
+!examples/**/Makefile*
+*.bxrc
+*.log

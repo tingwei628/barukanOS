@@ -1,4 +1,5 @@
 section .data
+global tss_64_ptr
 gdt_64:
     ; null descriptor
     dq 0

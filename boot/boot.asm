@@ -31,6 +31,7 @@ ReadError:
     call print_bios_string16
 
 End:
+    hlt
     jmp $
      
 %include "boot/real_mode/print.asm"

@@ -58,7 +58,6 @@ __attribute__((interrupt)) void vector5(TrapFrame *tf);
 __attribute__((interrupt)) void vector6(TrapFrame *tf);
 __attribute__((interrupt)) void vector7(TrapFrame *tf);
 
-// void vector8(void);
 __attribute__ ((interrupt)) void vector8(TrapFrame *tf, uint64_t errorcode);
 __attribute__ ((interrupt)) void vector10(TrapFrame *tf, uint64_t errorcode);
 __attribute__ ((interrupt)) void vector11(TrapFrame *tf, uint64_t errorcode);
@@ -73,10 +72,18 @@ __attribute__((interrupt)) void vector19(TrapFrame *tf);
 __attribute__((interrupt)) void vector32(TrapFrame *tf);
 __attribute__((interrupt)) void vector39(TrapFrame *tf);
 
+void sysint(TrapFrame *tf);
+
+
 void init_idt(void);
 void eoi(void);
 void load_idt(IdtPtr *ptr);
 uint8_t read_isr(void);
+uint64_t get_ticks(void);
 void load_cr3(uint64_t map);
+uint64_t read_cr2(void);
+__attribute__((naked)) void swap(uint64_t *prev, uint64_t next);
+__attribute__((naked)) void pstart(TrapFrame *tf);
+void TrapReturn(void);
 
 #endif

@@ -58,7 +58,6 @@ uint64_t init_memory(void)
         }       
     }
     uint64_t virtual_free_memory_end = (uint64_t)virtual_free_memory.next + PAGE_SIZE;
-    //printk("virtual_free_memory_end %x\n",virtual_free_memory_end);
     return virtual_free_memory_end;
 }
 

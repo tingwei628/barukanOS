@@ -4,6 +4,8 @@
 #include "idt.h"
 #include "print.h"
 
+static uint64_t virtual_free_memory_end;
+
 static void free_pdt(uint64_t map)
 {
     PDPTR *pml4t_base = (PDPTR*)map;
@@ -186,11 +188,11 @@ bool map_pages(uint64_t map, uint64_t v, uint64_t e, uint64_t physical_address, 
 void switch_vm(uint64_t map)
 {
     // save pml4 table base address (physical address) to cr3
-    load_cr3(V2P(map));   
+    load_cr3(V2P(map));
 }
 
 // setup virtual memory for kernel space
-uint64_t setup_kvm(uint64_t virtual_free_memory_end)
+uint64_t setup_kvm()
 {
     bool status = false;
 
@@ -201,7 +203,6 @@ uint64_t setup_kvm(uint64_t virtual_free_memory_end)
     if (page_map != 0)
     {
         kmemset((void*)page_map, 0, PAGE_SIZE);        
-        
         // check each page level of memory map
         status = map_pages(page_map, KERNEL_VIRTUAL_MEMORY_START, virtual_free_memory_end, V2P(KERNEL_VIRTUAL_MEMORY_START), PTE_P | PTE_W);
         if (status == false)
@@ -213,13 +214,15 @@ uint64_t setup_kvm(uint64_t virtual_free_memory_end)
     return page_map;
 }
 
-void init_kvm(uint64_t virtual_free_memory_end)
+void init_kvm(uint64_t memory_end)
 {
+    // set virtual_free_memory_end
+    virtual_free_memory_end = memory_end;
     // page_map is pml4 table base address (virtual address)
-    uint64_t page_map = setup_kvm(virtual_free_memory_end);
+    uint64_t page_map = setup_kvm();
     ASSERT(page_map != 0);
     switch_vm(page_map);
-    printk("memory manager is working now");
+    //printk("memory manager is working now\n");
 }
 
 // setup virtual memory for user space
