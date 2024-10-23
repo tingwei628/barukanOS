@@ -19,6 +19,7 @@ static int32_t sys_sleep(int64_t *argptr)
 {
     uint64_t old_ticks; 
     uint64_t ticks;
+    // sleep_ticks is the duration passed from user program (sleepu)
     uint64_t sleep_ticks = argptr[0];
 
     ticks = get_ticks();
@@ -26,6 +27,7 @@ static int32_t sys_sleep(int64_t *argptr)
 
     while (ticks - old_ticks < sleep_ticks)
     {
+       // -1 = waiting for ticks
        sleep(-1);
        ticks = get_ticks();
     }
@@ -68,8 +70,10 @@ void init_system_call(void)
 
 void system_call(TrapFrame *tf)
 {
+    // index number of syscall
     int64_t i = tf->rax;
     int64_t param_count = tf->rdi;
+    // arguments pass to function 
     int64_t *argptr = (int64_t*)tf->rsi;
     int32_t system_call_max_number = 5;
 

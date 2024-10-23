@@ -16,22 +16,23 @@ typedef enum {
     KILLED
 } ProcessState;
 
-// Process inherits from List 
+// Process inherits from List
 typedef struct Process {
 	List *next;
     int32_t pid;
 	int32_t state;
-	int32_t wait;
-	uint64_t context;
+	int32_t wait;	// identifier for sleep or wake up
+	uint64_t context; // saving kernel stack value of process before context switch
 	uint64_t page_map;	
 	uint64_t stack; // kernel mode
 	TrapFrame *tf;
 } Process;
 
-// tss to setup stack pointer for ring0
+// save task state into tss before context switch
+// after context switch, it will restore from tss
 typedef struct __attribute__((packed)) {
     uint32_t res0;
-    uint64_t rsp0;
+    uint64_t rsp0; // rsp0 = stack top of kernel stack
     uint64_t rsp1;
     uint64_t rsp2;
 	uint64_t res1;

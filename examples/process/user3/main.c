@@ -3,7 +3,7 @@
 int main(void)
 {
     int64_t counter = 0;
-    printf("hello from process3\n");
+    // printf("hello from process3\n");
     while (1)
     {
         if (counter % 100000000 == 0)

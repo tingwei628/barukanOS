@@ -20,6 +20,7 @@ static void init_idt_entry(IdtEntry *entry, uint64_t addr, uint8_t attribute)
 static void timer_handler(void)
 {
     ticks++;
+    // wake_up processes which are in sleep state from sys_sleep
     wake_up(-1);
 }
 
@@ -113,6 +114,8 @@ uint64_t get_ticks(void)
     return ticks;
 }
 
+
+// change kernel stack pointer %rsp from one process to another process
 __attribute__((naked)) void swap(uint64_t *prev, uint64_t next)
 {
         __asm__ __volatile__ (
@@ -133,6 +136,7 @@ __attribute__((naked)) void swap(uint64_t *prev, uint64_t next)
         "ret\n\t"
     );
 }
+// run the program of process in user space
   __attribute__((naked)) void pstart(TrapFrame *tf)
 {
     __asm__ __volatile__ (
@@ -148,6 +152,7 @@ void handler(TrapFrame *tf)
     switch (tf->trapno) 
     {
         case 32:
+            // handle per about 10 ms
             timer_handler();
             eoi();
             break;
@@ -185,8 +190,10 @@ void handler(TrapFrame *tf)
             }
     }
 
+    // timer interrupt
     if (tf->trapno == 32)
-    {   
+    {
+        // current process give up resources to another process 
         yield();
     }
 }
