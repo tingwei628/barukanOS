@@ -16,7 +16,7 @@ typedef struct ScreenBuffer {
 } ScreenBuffer;
 
 
-uint32_t printk(const uint8_t *format, ...);
-void write_screen(const uint8_t *buffer, int32_t size, uint8_t color);
+uint32_t printk(const char *format, ...);
+void write_screen(const char *buffer, int32_t size, char color);
 
 #endif

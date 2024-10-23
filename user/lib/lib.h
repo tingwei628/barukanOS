@@ -2,13 +2,19 @@
 #define LIB_USER_H
 
 #include "stdint.h"
+#include "stddef.h"
 
-#define SYSCALL_ASM "int $0x80\n"
-
-int32_t printf(const uint8_t *format, ...);
+int32_t printf(const char *format, ...);
 void sleepu(uint64_t ticks);
 void exitu(void);
 void waitu(void);
-int32_t writeu(uint8_t *buffer, int32_t buffer_size);
+uint8_t keyboard_readu(void);
+int32_t get_total_memoryu(void);
+
+int32_t memcmp_u(void *src1, void *src2, size_t size);
+
+int32_t read_cmd(char *buffer);
+int32_t parse_cmd(char *buffer, int32_t buffer_size);
+void execute_cmd(int32_t cmd);
 
 #endif

@@ -10,9 +10,9 @@ static ScreenBuffer screen_buffer =
 };
 
 
-static int32_t udecimal_to_string(uint8_t *buffer, uint32_t position, uint64_t digits)
+static int32_t udecimal_to_string(char *buffer, uint32_t position, uint64_t digits)
 {
-    uint8_t digits_buffer[50];
+    char digits_buffer[50];
 
     int32_t size = digits_to_string(digits_buffer, digits);
 
@@ -24,7 +24,7 @@ static int32_t udecimal_to_string(uint8_t *buffer, uint32_t position, uint64_t d
     return size;
 }
 
-static int32_t decimal_to_string(uint8_t *buffer, uint32_t position, int64_t digits)
+static int32_t decimal_to_string(char *buffer, uint32_t position, int64_t digits)
 {
     int32_t size = 0;
 
@@ -39,9 +39,9 @@ static int32_t decimal_to_string(uint8_t *buffer, uint32_t position, int64_t dig
     return size;
 }
 
-static int32_t hex_to_string(uint8_t *buffer, uint32_t position, uint64_t digits)
+static int32_t hex_to_string(char *buffer, uint32_t position, uint64_t digits)
 {
-    uint8_t digits_buffer[50];
+    char digits_buffer[50];
 
     int32_t size  = digits_hex_to_string(digits_buffer, digits);
 
@@ -55,7 +55,7 @@ static int32_t hex_to_string(uint8_t *buffer, uint32_t position, uint64_t digits
     return size + 1;
 }
 
-static int32_t read_string(uint8_t *buffer, uint32_t position, const uint8_t *src)
+static int32_t read_string(char *buffer, uint32_t position, const char *src)
 {
     int32_t index = 0;
 
@@ -68,15 +68,58 @@ static int32_t read_string(uint8_t *buffer, uint32_t position, const uint8_t *sr
     return index;
 }
 
-void write_screen(const uint8_t *buffer, int32_t size, uint8_t color)
+void write_screen(const char *buffer, int32_t size, char color)
 {
     ScreenBuffer *strbuf = &screen_buffer;
     int32_t column = strbuf->column;
     int32_t row = strbuf->row;
-    uint8_t *buf = (uint8_t*)P2V(VGA_START); // vga physical memort start to virtual memort start
+    char *buf = (char*)P2V(VGA_START); // vga physical memort start to virtual memort start
     
     for (int32_t i = 0; i < size; i++)
     {
+        // new line
+        if (buffer[i] == '\n')
+        {
+            column = 0;
+            row++;
+        }
+        // if backspace key is pressed
+        else if (buffer[i] == '\b')
+        {
+            if (column == 0 && row == 0)
+                continue;
+            
+            // cursor at the start of line
+            // back to end of previos line
+            if (column == 0)
+            {
+                row--;
+                column = SCREEN_MAX_COL;
+            }
+
+            column--;
+
+            // deleted char is the last char of previous line
+            buf[column * 2 + row * LINE_SIZE] = 0;
+            buf[column * 2 + row * LINE_SIZE + 1] = 0;
+
+        }
+        else
+        {
+            buf[column * 2 + row * LINE_SIZE] = buffer[i];
+            buf[column * 2 + row * LINE_SIZE + 1] = color;
+            
+            column++;
+
+            // to the first of next line
+            if (column >= SCREEN_MAX_COL)
+            {
+                column = 0;
+                row++;
+            }
+
+        }
+
         //if scrolling screen
         if (row >= SCREEN_MAX_ROW)
         {
@@ -84,41 +127,19 @@ void write_screen(const uint8_t *buffer, int32_t size, uint8_t color)
             kmemset(buf + LINE_SIZE * (SCREEN_MAX_ROW-1), 0, LINE_SIZE);
             row--;
         }
-        
-        // next line
-        if (buffer[i] == '\n')
-        {
-            column = 0;
-            row++;
-        } 
-        else
-        {
-            buf[column * 2 + row * LINE_SIZE] = buffer[i];
-            buf[column * 2 + row * LINE_SIZE + 1] = color;
 
-
-            column++;
-
-            // next line
-            if (column >= SCREEN_MAX_COL)
-            {
-
-                column=0;
-                row++;
-            }
-        }
     }
 
     strbuf->column = column;
     strbuf->row = row;
 }
 
-uint32_t printk(const uint8_t *format, ...)
+uint32_t printk(const char *format, ...)
 {
-    uint8_t buffer[1024];
+    char buffer[1024];
     int32_t buffer_size = 0;
     int64_t integer = 0;
-    uint8_t *string = 0;
+    char *string = 0;
 
     va_list args;
 
@@ -149,7 +170,7 @@ uint32_t printk(const uint8_t *format, ...)
                     break;
 
                 case 's':
-                    string = va_arg(args, uint8_t*);
+                    string = va_arg(args, char*);
                     buffer_size += read_string(buffer, buffer_size, string);
                     break;
 

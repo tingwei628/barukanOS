@@ -1,7 +1,7 @@
 #include "string.h"
 
-static const uint8_t digits_decimal_map[10] = "0123456789";
-static const uint8_t digits_hex_map[16] = "0123456789ABCDEF";
+static const char digits_decimal_map[10] = "0123456789";
+static const char digits_hex_map[16] = "0123456789ABCDEF";
 
 int32_t digits_to_string(uint8_t *digits_buffer, uint64_t digits)
 {

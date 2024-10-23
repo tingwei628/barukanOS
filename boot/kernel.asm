@@ -100,9 +100,9 @@ InitPIC:
     out 0x21, al
     out 0xa1, al
 
-    ; masking all IRQs in master except IRQ0
-    ; (only IRQ0 of master which PIT used fire interrupt)
-    mov al, 11111110b
+    ; masking all IRQs in master except IRQ0, IRQ1(PS/2 keyboard)
+    ; (only IRQ0, IRQ1 of master which PIT used fire interrupt)
+    mov al, 11111100b
     out 0x21, al
     ; masking all IRQs of slave
     mov al, 11111111b

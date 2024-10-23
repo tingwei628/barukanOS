@@ -7,7 +7,7 @@ int main(void)
     while (1)
     {
         if (counter % 100000000 == 0)
-            printf("process3 %d\n",counter);
+            // printf("process3 %d\n",counter);
         counter++;
     }
     return 0;

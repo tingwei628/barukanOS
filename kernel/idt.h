@@ -70,6 +70,7 @@ __attribute__((interrupt)) void vector16(TrapFrame *tf);
 __attribute__((interrupt)) void vector18(TrapFrame *tf);
 __attribute__((interrupt)) void vector19(TrapFrame *tf);
 __attribute__((interrupt)) void vector32(TrapFrame *tf);
+__attribute__((interrupt)) void vector33(TrapFrame *tf);
 __attribute__((interrupt)) void vector39(TrapFrame *tf);
 
 void sysint(TrapFrame *tf);

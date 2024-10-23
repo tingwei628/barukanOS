@@ -8,6 +8,6 @@
             error_check(__FILE__,__func__,__LINE__); \
 } while (0) 
 
-void error_check(uint8_t *file, uint8_t const *func, uint64_t line);
+void error_check(char *file, char const *func, uint64_t line);
 
 #endif

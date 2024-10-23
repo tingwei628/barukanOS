@@ -33,14 +33,15 @@ typedef struct Page {
 } Page;
 
 
-void* kmemset(void *buffer, uint8_t value, size_t size);
+void* kmemset(void *buffer, char value, size_t size);
 void* kmemmove(void *dst, void *src, size_t size);
 void* kmemcpy(void *dst, void *src, size_t size);
-uint8_t kmemcmp(void *src1, void *src2, size_t size);
+int32_t kmemcmp(void *src1, void *src2, size_t size);
 
 void* kmalloc(void);
 void kfree(uint64_t v);
 
 uint64_t init_memory(void);
+uint64_t get_total_memory(void);
 
 #endif

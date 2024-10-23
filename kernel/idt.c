@@ -2,6 +2,7 @@
 #include "process.h"
 #include "syscall.h"
 #include "print.h"
+#include "../drivers/keyboard.h"
 
 static IdtPtr idt_pointer;
 static IdtEntry vectors[256];
@@ -43,6 +44,7 @@ void init_idt(void)
     init_idt_entry(&vectors[18],(uint64_t)vector18,INT_GATE_FLAG);
     init_idt_entry(&vectors[19],(uint64_t)vector19,INT_GATE_FLAG);
     init_idt_entry(&vectors[32],(uint64_t)vector32,INT_GATE_FLAG);
+    init_idt_entry(&vectors[33],(uint64_t)vector33,INT_GATE_FLAG);
     init_idt_entry(&vectors[39],(uint64_t)vector39,INT_GATE_FLAG);
     init_idt_entry(&vectors[0x80],(uint64_t)sysint,0xee);
 
@@ -51,6 +53,7 @@ void init_idt(void)
     load_idt(&idt_pointer);
 }
 
+// end of interrupt
 void eoi(void)
 {
     __asm__ __volatile__ (
@@ -148,7 +151,10 @@ void handler(TrapFrame *tf)
             timer_handler();
             eoi();
             break;
-            
+        case 33:  
+            keyboard_handler();   
+            eoi();
+            break;  
         case 39:
             isr_value = read_isr();
             if ((isr_value&(1<<7)) != 0) 
@@ -301,6 +307,12 @@ __attribute__ ((interrupt)) void vector19(TrapFrame *tf) {
 // timer interrupt vector
 __attribute__ ((interrupt)) void vector32(TrapFrame *tf) {
     tf->trapno = 32;
+    tf->errorcode = 0;
+    handler(tf);
+}
+// keyboard interrupt vector
+__attribute__ ((interrupt)) void vector33(TrapFrame *tf) {
+    tf->trapno = 33;
     tf->errorcode = 0;
     handler(tf);
 }

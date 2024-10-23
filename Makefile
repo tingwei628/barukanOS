@@ -7,11 +7,16 @@ SECTOR_SIZE = 512
 CONV = notrunc
 BOOT_DIR = boot/
 BOOT_BINS = $(BOOT_DIR)boot.bin $(BOOT_DIR)loader.bin $(BOOT_DIR)kernel.bin
+USER_DIR = user/
+USER_LIB_DIR = $(USER_DIR)lib/
 KERNEL_DIR = kernel/
 KERNEL_OBJS = $(BOOT_DIR)kernel.o $(KERNEL_DIR)main.o $(KERNEL_DIR)idt.o \
 	$(KERNEL_DIR)string.o $(KERNEL_DIR)memory.o $(KERNEL_DIR)print.o $(KERNEL_DIR)debug.o \
 	$(KERNEL_DIR)vm.o $(KERNEL_DIR)process.o $(KERNEL_DIR)syscall.o $(KERNEL_DIR)list.o \
 	$(KERNEL_DIR)trap.o
+
+DRIVERS_DIR = drivers/
+DRIVERS_OBJS = $(DRIVERS_DIR)keyboard.o $(DRIVERS_DIR)port.o
 
 USER_DIR = user/
 EXAMPLES_DIR = examples/process/
@@ -53,7 +58,7 @@ $(BOOT_DIR)loader.bin: $(BOOT_DIR)loader.asm
 $(BOOT_DIR)kernel.bin: $(KERNEL_DIR)kernel
 	objcopy -O binary $^ $@
 
-$(KERNEL_DIR)kernel: $(KERNEL_OBJS)
+$(KERNEL_DIR)kernel: $(KERNEL_OBJS) $(DRIVERS_OBJS)
 	ld -nostdlib -T $(KERNEL_DIR)linker.ld -o $@ $^
 
 $(BOOT_DIR)kernel.o: $(BOOT_DIR)kernel.asm
@@ -63,6 +68,9 @@ $(KERNEL_DIR)trap.o: $(KERNEL_DIR)trap.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
 
 $(KERNEL_DIR)%.o: $(KERNEL_DIR)%.c
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+$(DRIVERS_DIR)%.o: $(DRIVERS_DIR)%.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 lib: 

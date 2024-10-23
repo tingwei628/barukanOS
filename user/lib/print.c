@@ -1,14 +1,14 @@
-#include "lib.h"
+#include "stdint.h"
 #include "stdarg.h"
 
-extern int32_t writeu(uint8_t *buffer, int32_t buffer_size);
+extern int32_t writeu(char *buffer, int32_t buffer_size);
 
-static uint8_t digits_udecimal_map[10] = "0123456789";
-static uint8_t digits_hex_map[16] = "0123456789ABCDEF";
+static char digits_udecimal_map[10] = "0123456789";
+static char digits_hex_map[16] = "0123456789ABCDEF";
 
-static int32_t udecimal_to_string(uint8_t *buffer, int32_t position, uint64_t digits)
+static int32_t udecimal_to_string(char *buffer, int32_t position, uint64_t digits)
 {
-    uint8_t digits_buffer[25];
+    char digits_buffer[25];
     int32_t size = 0;
 
     do
@@ -24,7 +24,7 @@ static int32_t udecimal_to_string(uint8_t *buffer, int32_t position, uint64_t di
 
     return size;
 }
-static int32_t decimal_to_string(uint8_t *buffer, int32_t position, int64_t digits)
+static int32_t decimal_to_string(char *buffer, int32_t position, int64_t digits)
 {
     int32_t size = 0;
 
@@ -38,9 +38,9 @@ static int32_t decimal_to_string(uint8_t *buffer, int32_t position, int64_t digi
     return size;
 }
 
-static int32_t hex_to_string(uint8_t *buffer, int32_t position, uint64_t digits)
+static int32_t hex_to_string(char *buffer, int32_t position, uint64_t digits)
 {
-    uint8_t digits_buffer[25];
+    char digits_buffer[25];
     int32_t size = 0;
 
     do
@@ -59,7 +59,7 @@ static int32_t hex_to_string(uint8_t *buffer, int32_t position, uint64_t digits)
     return size+1;
 }
 
-static int32_t read_string(uint8_t *buffer, int32_t position, const uint8_t *string)
+static int32_t read_string(char *buffer, int32_t position, const char *string)
 {
     int32_t index = 0;
 
@@ -71,12 +71,12 @@ static int32_t read_string(uint8_t *buffer, int32_t position, const uint8_t *str
     return index;
 }
 
-int32_t printf(const uint8_t *format, ...)
+int32_t printf(const char *format, ...)
 {
-    uint8_t buffer[1024];
+    char buffer[1024];
     int32_t buffer_size = 0;
     int64_t integer = 0;
-    uint8_t *string = 0;
+    char *string = 0;
     va_list args;
 
     va_start(args,format);
@@ -107,7 +107,7 @@ int32_t printf(const uint8_t *format, ...)
                     break;
 
                 case 's':
-                    string = va_arg(args, uint8_t*);
+                    string = va_arg(args, char*);
                     buffer_size += read_string(buffer, buffer_size, string);
                     break;
 

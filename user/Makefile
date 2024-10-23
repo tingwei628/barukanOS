@@ -5,7 +5,7 @@ ASM = nasm
 ASMFLAGS = -f elf64 -g -F dwarf
 USER_DIR = user/
 USER_LIB_DIR = $(USER_DIR)lib/
-USER_OBJS = $(USER_LIB_DIR)lib.o $(USER_LIB_DIR)print.o
+USER_OBJS = $(USER_LIB_DIR)lib.o $(USER_LIB_DIR)print.o $(USER_LIB_DIR)console.o $(USER_LIB_DIR)memory.o
 
 lib: $(USER_LIB_DIR)lib.a
 	@echo "end of build user lib..."
