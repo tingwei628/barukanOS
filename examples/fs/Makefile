@@ -1,0 +1,44 @@
+CC = gcc
+ASM = nasm
+CFLAGS = -std=c11 -mcmodel=large -ffreestanding -fno-stack-protector -mno-red-zone -g
+USER_DIR = user/
+USER_LIB_DIR = $(USER_DIR)lib/
+EXAMPLES_FS_DIR = examples/fs/
+EXAMPLES_FS_FAT16_DIR = $(EXAMPLES_FS_DIR)fat16/
+
+.PHONY:	clean examples
+
+examples: $(EXAMPLES_FS_DIR)user1.bin $(EXAMPLES_FS_DIR)user2.bin \
+	$(EXAMPLES_FS_DIR)data.bin $(EXAMPLES_FS_DIR)ls
+	@echo "end of building fat16 examples..."
+
+$(EXAMPLES_FS_DIR)ls: $(EXAMPLES_FS_FAT16_DIR)user3/user3
+	objcopy -O binary $< $@
+
+$(EXAMPLES_FS_DIR)user2.bin: $(EXAMPLES_FS_FAT16_DIR)user2/user2
+	objcopy -O binary $< $@
+
+$(EXAMPLES_FS_DIR)user1.bin: $(EXAMPLES_FS_FAT16_DIR)user1/user1
+	objcopy -O binary $< $@
+
+$(EXAMPLES_FS_DIR)data.bin: $(EXAMPLES_FS_FAT16_DIR)user2/data.asm
+	$(ASM) -f bin $< -o $@
+
+$(EXAMPLES_FS_FAT16_DIR)user3/user3: $(EXAMPLES_FS_FAT16_DIR)user3/start.o $(EXAMPLES_FS_FAT16_DIR)user3/main.o $(USER_LIB_DIR)lib.a
+	ld -nostdlib -T$(EXAMPLES_FS_DIR)linker.ld -o $@ $^
+
+$(EXAMPLES_FS_FAT16_DIR)user2/user2: $(EXAMPLES_FS_FAT16_DIR)user2/start.o $(EXAMPLES_FS_FAT16_DIR)user2/main.o $(USER_LIB_DIR)lib.a
+	ld -nostdlib -T$(EXAMPLES_FS_DIR)linker.ld -o $@ $^
+
+$(EXAMPLES_FS_FAT16_DIR)user1/user1: $(EXAMPLES_FS_FAT16_DIR)user1/start.o $(EXAMPLES_FS_FAT16_DIR)user1/main.o $(USER_LIB_DIR)lib.a
+	ld -nostdlib -T$(EXAMPLES_FS_DIR)linker.ld -o $@ $^
+
+$(EXAMPLES_FS_FAT16_DIR)%/start.o: $(EXAMPLES_FS_FAT16_DIR)%/start.c
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+$(EXAMPLES_FS_FAT16_DIR)%/main.o: $(EXAMPLES_FS_FAT16_DIR)%/main.c
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+clean:
+	rm -f $(EXAMPLES_FS_FAT16_DIR)**/*.o $(EXAMPLES_FS_DIR)*.bin $(EXAMPLES_FS_FAT16_DIR)user1/user1 \
+	$(EXAMPLES_FS_FAT16_DIR)user2/user2 $(EXAMPLES_FS_FAT16_DIR)user3/user3 $(EXAMPLES_FS_DIR)ls

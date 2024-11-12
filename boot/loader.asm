@@ -5,61 +5,89 @@ start:
     ; dl from boot.asm
     mov [DriveId], dl
 
-LoadKernel:
-    mov si, DiskReadPacket
-    mov dl, [DriveId]
-    mov ah, 0x42 ; function code, 0x42 = Extended Read Sectors From Drive
-    int 0x13
-    jc  ReadError
+; ; get memory info
+; call get_memory_info
 
-; read user program in examples
-LoadUser1:
-    mov si,ReadPacket
-    mov word[si], 0x10
-    mov word[si+2], 10
-    ; 16 bit segment=0x2000
-    ; address => 0x2000 * 16 + 0 = 0x20000,  load user1 start at 0x20000
-    mov word[si+4], 0
-    mov word[si+6], 0x2000 ; start
-    mov dword[si+8], 106 ; LBA
-    mov dword[si+0xc], 0
-    mov dl, [DriveId]
-    mov ah,0x42
-    int 0x13
-    jc  ReadError
-
-LoadUser2:
-    mov si, ReadPacket
-    mov word[si], 0x10
-    mov word[si+2], 10
-    ; 16 bit segment=0x3000
-    ; address => 0x3000 * 16 + 0 = 0x30000,  load user2 start at 0x30000
-    mov word[si+4], 0
-    mov word[si+6], 0x3000
-    mov dword[si+8], 116 ; LBA
-    mov dword[si+0xc], 0
-    mov dl, [DriveId]
-    mov ah, 0x42
-    int 0x13
-    jc  ReadError
-
-LoadUser3:
-    mov si, ReadPacket
-    mov word[si], 0x10
-    mov word[si+2], 10
-    mov word[si+4], 0
-    mov word[si+6], 0x4000
-    ; 16 bit segment=0x4000
-    ; address => 0x4000 * 16 + 0 = 0x40000,  load user3 start at 0x40000
-    mov dword[si+8], 126 ; LBA
-    mov dword[si+0xc], 0
-    mov dl, [DriveId]
-    mov ah, 0x42
-    int 0x13
-    jc  ReadError
+    mov ax, 0x2000
+    mov es, ax ; es = 0x2000
 
 ; get memory info
-call get_memory_info
+GetMemInfoStart:
+    mov eax, 0xe820
+    ; SMAP
+    mov edx, 0x534d4150
+    ; size of each entry is 20 bytes
+    mov ecx, 20
+    ; the number of entries will be stored at 0x20000 = 0x2000 * 16 + 0
+    mov dword[es:0], 0
+
+    mov edi, 8 ; entries stored start at 0x20008 = es:di = 0x2000 * 16 + 8
+    xor ebx, ebx ; ebx must be 0
+    int 0x15
+    jc NotAvailable
+
+GetMemInfo:
+    ; check if the type of memory is 1 = free memory region
+    ; when it is not 1 it means this is not free memory region
+    ; then continue to find next block of memory info
+    ; typedef struct __attribute__((packed)) {
+    ;   uint64_t address;
+    ;   uint64_t length;
+    ;   uint32_t type;
+    ; } E820;
+    ; type is at 16 bytes offset
+    cmp dword[es:di + 16], 1
+    jne Cont
+    ; check if higer part of the base address of region is larger than 4GB
+    ; when it is not 0 it means this is larger than 4GB 
+    ; then continue to find next block of memory info
+    ; ref: E820
+    cmp dword[es:di + 4], 0
+    jne Cont
+    ; we want address of free region < 0x30000000
+    ; since os.img is from 0x30000000 to 0x30000000 + 100MB
+    ; check if address of memory is larger than 0x30000000
+    mov eax, [es:di]
+    ; when [es:di] > 0x30000000
+    ; then continue to find next block of memory info
+    cmp eax, 0x30000000
+    ja Cont ; ja = Jump if Above
+    ; check if length of memory at least >= 4GB (=0x100000000) = 12 bytes
+    ; when it is not 0 it means this is the region to load image
+    ; then jump to Find
+    cmp dword[es:di + 12], 0
+    jne Find
+    ; the address (eax) add length of memory
+    add eax, [es:di + 8]
+    ; the size of os.img = 100MB
+    ; when eax < (0x30000000 + 100 * 1024 * 1024)
+    ; since os.img is from 0x30000000 to 0x30000000 + 100MB
+    ; then continue to find next block of memory info
+    cmp eax, 0x30000000 + 100 * 1024 * 1024 ; 0x30000000 + 100MB
+    jb Cont ; jb = Jump if Less
+
+Find:
+    ; set LoadImage = 1
+    mov byte[LoadImage], 1
+
+Cont:
+    add edi, 20 ; next entry start
+    inc dword[es:0] ; add entry number
+    test ebx, ebx
+    jz GetMemDone ; test is end of memeory map
+
+    mov eax, 0xe820
+    mov edx, 0x534d4150 ; SMP
+    mov ecx, 20 ; size of each entry is 20 bytes
+    int 0x15
+    jnc GetMemInfo
+
+GetMemDone:
+    ; check if LoadImage is 1
+    ; if not 1, then jump ReadError
+    cmp byte[LoadImage], 1
+    jne ReadError
+
 ; test whether A20 line is enabled or not
 call test_A20
 
@@ -74,18 +102,131 @@ SetVideoMode:
 
 
 ; setup before entering protected mode (32-bit)
-SetupProtectedMode:
+SetupProtectedModeToLoadGDT:
     ; disable interrupts 
     cli
     ; load GDT pointer value from memory to GDTR
     lgdt [gdt_32_ptr]
+
+    ; enable protected mode=1
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+
+; setup for loading os.img
+LoadFS:
+    ; extend to 4GB limit of segment register fs
+    ; 0x10 = 16, which is descriptor of data segment (3rd descriptor = gdt_32_data)
+    mov ax, 0x10
+    mov fs, ax
+
+    ; switch to real mode
+    mov eax, cr0
+    ; bit-0 in cr0 is PE (Protection Enable)
+    ; 0xfe = 11111110
+    ; clear bit-0 of al
+    ; if bit-0 = 1 (protection mode), bit-0 = 0 (real mode)
+    and al, 0xfe
+    mov cr0, eax
+
+; since originally it only access 1MB memory
+; now for loading image to access 4GB memory in real mode
+BigRealMode:
+    sti
+    ; os.img CHS = (203/16/63)
+    ; total sectors = 203 * 16 * 63
+    ; read 100 sectors each time
+    ; cx as counter
+    mov cx, 203 * 16 * 63 / 100
+    ; ebx is start from which sector to read
+    xor ebx, ebx
+    ; edi is the start address of loading image
+    mov edi, 0x30000000
+    xor ax, ax
+    mov fs, ax
+
+; os.img range from 0x30000000 to 0x40000000(=1GB) in physical memory
+; read sectors in os.img
+ReadFAT:
+    push ecx
+    push ebx
+    push edi
+    push fs
+
+    mov ax, 100 ; read 100 sectors
+    call ReadSectors
+    ; test al is 0 or not
+    ; jnz = if al is not 0, then jump ReadError
+    test al, al
+    jnz  ReadError
+
+    pop fs
+    pop edi
+    pop ebx
+
+    ; 512 * 100 = total bytes of 100 sectors
+    ; copy 4 bytes each time
+    mov cx, 512 * 100 / 4
+    ; read from 0x60000 = 0x6000 * 16 + 0
+    mov esi, 0x60000
+
+CopyData:
+    ; copy data from  [fs:esi] to [fs:edi]
+    ; esi = source, edi = destination
+    mov eax, [fs:esi]
+    mov [fs:edi], eax
+
+    ;  move address to next 4 bytes each time
+    add esi, 4
+    add edi, 4
+    loop CopyData
+
+    ; restore ecx counter for ReadFAT
+    pop ecx
+
+    ; ebx is the start of sector to read
+    ; move to next 100 sectors
+    add ebx, 100
+    loop ReadFAT
+
+ReadRemainingSectors:
+    push edi
+    push fs
+    
+    ; os.img CHS = (203/16/63)
+    ; total sectors = 203 * 16 * 63
+    ; ax = remaining sectors % 100
+    mov ax, (203 * 16 * 63) % 100
+    call ReadSectors
+    test al, al
+    jnz  ReadError
+
+    pop fs
+    pop edi
+    
+    ; 512 * (203 * 16 * 63) % 100 = total bytes of remaining sectors
+    ; copy 4 bytes each time
+    mov cx, (((203 * 16 * 63) % 100) * 512) / 4
+    mov esi, 0x60000
+
+CopyRemainingData: 
+    mov eax, [fs:esi]
+    mov [fs:edi], eax
+
+    add esi, 4
+    add edi, 4
+    loop CopyRemainingData
+
+SetupProtectedModeToLoadIDT:
+    cli
     ; load IDT pinter value from memory to IDTR
     lidt [idt_32_ptr]
 
     ; enable protected mode=1
     mov eax, cr0
-    or eax,1
+    or eax, 1
     mov cr0, eax
+
     ; Real mode => "Segment:Offset"
     ; Protected Mode => "segment selector:Offset"
     ; jump to code descriptor in protected mode
@@ -99,6 +240,25 @@ SetupProtectedMode:
     ; 8 = 00001000
     jmp 8:PMEntry
 
+ReadSectors:
+    mov si, ReadPacket
+    mov word[si], 0x10 ; packet size
+    mov word[si+2], ax ; number of sectors(kernel) to read
+    mov word[si+4], 0 ; 16 bit offset=0
+    mov word[si+6], 0x6000 ; loading sectors into this address
+    mov dword[si+8], ebx ; ebx is the start of kernel sector to read
+    mov dword[si+0xc], 0
+    mov dl, [DriveId]
+    mov ah, 0x42 ; function code, 0x42 = Extended Read Sectors From Drive
+    int 0x13
+    
+    ; if read successfully, CF = 0
+    ; if read unsuccessfully, CF = 1
+    ; setc = Set if Carry
+    ; If CF = 1, then set al = 1; if CF=0, then set al=0
+    setc al
+    ret
+
 ReadError:
 NotAvailable:
 End:
@@ -111,16 +271,9 @@ End:
 
 DriveId:    db 0
 ReadPacket: times 16 db 0
+LoadImage:  db 0
 Message:    db "Text mode is set"
 MessageLen: equ $-Message
-DiskReadPacket:
-    dw 0x10
-    dw 100 ; number of sectors(kernel) to read
-    dw 0  ; 16 bit offset=0
-    dw 0x1000  ; 16 bit segment=0x1000
-    ; address => 0x1000 * 16 + 0 = 0x10000,  load kernel start at 0x10000
-    dd 6  ; LBA=6 is the start of kernel sector
-    dd 0
 
 ; 32-bit in protected mode
 BITS 32
@@ -171,18 +324,18 @@ SetupLongMode:
     ; 0x71003 = 1110001 0000 0000 0011 (binary format)
     ; bit-0= 1 (P)
     ; bit-1= 1 (R/W)
-    ; bit-2= 0 (U/S)
+    ; bit-2= 1 (U/S)
     ; bit-12 to bit-31 = 1110001 = 0x71 ("page directory pointer table" base address)
     ; set only first entry in PML4
-    mov dword[0x70000], 0x71003
+    mov dword[0x70000], 0x71007
     ; 0x71000 is PDP base address
     ; 10000111 = 1000 0111
     ; bit-0= 1 (P)
     ; bit-1= 1 (R/W)
-    ; bit-2= 0 (U/S)
+    ; bit-2= 1 (U/S)
     ; bit-7= 1 (1 for 1g pages PDP table entry, 0 for 2m or 4k PDP table entry)
     ; set only first entry in PDP (base address is 0x71000)
-    mov dword[0x71000], 10000011b
+    mov dword[0x71000], 10000111b
     ; for high canonical range 
     ; 0xffff800000000000 is lowest part of high canonical range (0xffff800000000000 ~ 0xffffffffffffffff)
     ; >> 39 move to PML4 to lower bits
@@ -250,18 +403,20 @@ SetupKernel:
     cld
     ; since memory address below 0x100000 has some ranges reserved
     ; so copy kernel from source to destination in memory
-    ; source address =0x10000
-    mov rdi, 0x200000
-    mov rsi, 0x10000
+    ; source address = CModule
+    ; destination address = 0x100000
+    mov rdi, 0x100000
+    mov rsi, CModule
     ; kernel
-    ; times = 512 (bytes) * 100 (sectors) / 8 (qword)
-    mov rcx, 512 * 100 /8
+    ; times = 512 (bytes) * 30 (sectors) / 8 (qword)
+    ; 30 sectors = size of CModule
+    mov rcx, 512 * 30 / 8
     ; "rep": repeat "rcx" times
     ; "movsq": move qword from address (R|E)SI to (R|E)DI.
     rep movsq
 
-    ; kernel base address = 0xffff800000200000 at high memory location
-    mov rax, 0xffff800000200000
+    ; kernel base address = 0xffff800000100000 at high memory location
+    mov rax, 0xffff800000100000
     jmp rax
 
 LEnd:
@@ -270,5 +425,8 @@ LEnd:
 
 %include "boot/long_mode/print.asm"
 
-Message64:    db "Long mode is set"
-Message64Len: equ $-Message64
+Message64:      db "Long mode is set"
+Message64Len:   equ $-Message64
+
+; setup kernel from os.img
+CModule:

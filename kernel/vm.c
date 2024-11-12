@@ -1,3 +1,4 @@
+#include "mem.h"
 #include "memory.h"
 #include "vm.h"
 #include "debug.h"
@@ -152,7 +153,10 @@ bool map_pages(uint64_t map, uint64_t v, uint64_t e, uint64_t physical_address, 
     uint32_t index;
 
     ASSERT(v < e);
+    // physical_address is base address
     ASSERT(physical_address % PAGE_SIZE == 0);
+    // since physical address to virtual address is 1 to 1
+    // physical_address + (vend - vstart) = end of physical address (which should be <= 1GB)
     ASSERT(physical_address + vend - vstart <= 1024 * 1024 * 1024); // 1024 * 1024 * 1024 = 1gb
 
     // set PD entry to pdt
@@ -204,7 +208,7 @@ uint64_t setup_kvm()
     {
         kmemset((void*)page_map, 0, PAGE_SIZE);        
         // check each page level of memory map
-        status = map_pages(page_map, KERNEL_VIRTUAL_MEMORY_START, virtual_free_memory_end, V2P(KERNEL_VIRTUAL_MEMORY_START), PTE_P | PTE_W);
+        status = map_pages(page_map, KERNEL_VIRTUAL_MEMORY_START, P2V(PHYSICAL_MEMORY_END), V2P(KERNEL_VIRTUAL_MEMORY_START), PTE_P | PTE_W);
         if (status == false)
         {
             free_vm(page_map);
@@ -298,4 +302,44 @@ void free_vm(uint64_t map)
     free_pdt(map);
     free_pdpt(map);
     free_pml4t(map);
+}
+
+// copy virtual memory in user space from current process to new process
+bool copy_uvm(uint64_t dst_map, uint64_t src_map, int32_t size)
+{
+    bool status = false;
+    uint32_t index;
+    PD pd = NULL;
+    uint64_t start;
+
+    void *page = kmalloc();
+    if (page != NULL)
+    {
+        kmemset(page, 0, PAGE_SIZE);
+        status = map_pages(dst_map, 0x400000, 0x400000 + PAGE_SIZE, V2P(page), PTE_P | PTE_W | PTE_U);
+
+        if (status)
+        {
+            pd = get_pdt_base_from_pdpt(src_map, 0x400000, false, 0);
+            if (pd == NULL)
+            {
+                free_vm(dst_map);
+                return false;
+            }
+
+            index = (0x400000 >> 21) & 0x1FF;
+            ASSERT(((uint64_t)pd[index] & PTE_P) == 1);
+            
+            start = P2V(PTE_ADDR(pd[index]));
+            // copy program instruction and data into this page
+            kmemcpy(page, (void*)start, size);
+        }
+        else
+        {
+            kfree((uint64_t)page);
+            free_vm(dst_map);
+        }
+    }
+
+    return status;
 }

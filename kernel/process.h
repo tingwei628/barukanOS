@@ -3,6 +3,7 @@
 
 #include "idt.h"
 #include "list.h"
+#include "../fs/fat16/file.h"
 
 #define STACK_SIZE      (2 * 1024 * 1024) // 2MB
 #define NUM_PROC        10
@@ -26,6 +27,7 @@ typedef struct Process {
 	uint64_t page_map;	
 	uint64_t stack; // kernel mode
 	TrapFrame *tf;
+	FileDesc *file[100]; // array of pointer to file descriptor
 } Process;
 
 // save task state into tss before context switch
@@ -62,8 +64,12 @@ void yield(void);
 void sleep(int32_t wait);
 void wake_up(int32_t wait);
 void exit(void);
-void wait(void);
+void wait(int32_t pid);
+int32_t fork(void);
+int32_t exec(Process *process, char *name);
 
-List* remove_list(HeadList *list, int32_t wait);
+List *remove_list(HeadList *list, int32_t wait);
+
+ProcessControl *get_pc(void);
 
 #endif

@@ -2,10 +2,6 @@
 
 int main(void)
 {
-    // printf("hello from process1\n");
-    while (1) {
-        // to clean up 
-        waitu();
-    }
+    printf("hello from process1\n");
     return 0;
 }

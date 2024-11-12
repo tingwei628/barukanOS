@@ -128,11 +128,15 @@ InitPIC:
     retf
   
 KernelEntry:
+    ; clear stack segment if return from interrupt handling
+    xor ax, ax
+    mov ss, ax
     ; stack is at high memory location
     mov rsp, 0xffff800000200000
     call kernal_main
 
 End:
+    sti ; enable interrupt for idle process
     hlt
     jmp End
 

@@ -83,6 +83,7 @@ uint8_t read_isr(void);
 uint64_t get_ticks(void);
 void load_cr3(uint64_t map);
 uint64_t read_cr2(void);
+uint64_t read_cr3(void);
 __attribute__((naked)) void swap(uint64_t *prev, uint64_t next);
 __attribute__((naked)) void pstart(TrapFrame *tf);
 void TrapReturn(void);

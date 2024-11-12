@@ -3,6 +3,8 @@
 
 #include "idt.h" 
 
+#define SYSTEMCALL_NUM  20
+
 typedef int32_t (*SYSTEMCALL)(int64_t *argptr); // function pointer of int(*)(int64_t *)
 void init_system_call(void);
 void system_call(TrapFrame *tf);

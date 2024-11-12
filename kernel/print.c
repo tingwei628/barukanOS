@@ -1,5 +1,6 @@
 #include "stdarg.h"
 #include "print.h"
+#include "mem.h"
 #include "memory.h"
 #include "string.h"
 

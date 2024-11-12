@@ -109,6 +109,16 @@ uint64_t read_cr2(void)
     return cr2;
 }
 
+uint64_t read_cr3(void)
+{
+    uint64_t cr3;
+    __asm__ __volatile__ (
+        "movq %%cr3, %0\n\t"
+        : "=r"(cr3)
+    );
+    return cr3;
+}
+
 uint64_t get_ticks(void)
 {
     return ticks;
@@ -137,7 +147,7 @@ __attribute__((naked)) void swap(uint64_t *prev, uint64_t next)
     );
 }
 // run the program of process in user space
-  __attribute__((naked)) void pstart(TrapFrame *tf)
+__attribute__((naked)) void pstart(TrapFrame *tf)
 {
     __asm__ __volatile__ (
         "movq %rdi, %rsp\n\t"

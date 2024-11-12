@@ -70,7 +70,6 @@ clear_screen_string16_loop:
     popa
     ret
 
-
 space_char: equ 0x20 ; space
 vga_base: equ 0xb800
 vga_start:  equ 0xb8000

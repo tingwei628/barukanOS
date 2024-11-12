@@ -42,7 +42,7 @@ ErrorMessageLen: equ $-ErrorMessage
 ; Disk Address Packet has 16 bytes
 DiskReadPacket:
     dw 0x10 ; size of Disk Address Packet (set this to 0x10)
-    dw 5 ; number of sectors(loader) to read
+    dw 30 ; number of sectors(loader) to read
     dw 0x7e00 ; 16 bit offset=0x7e00
     dw 0x0000 ; 16 bit segment=0
     ; address => 0 * 16 + 0x7e00 = 0x7e00
@@ -51,12 +51,25 @@ DiskReadPacket:
 
 
 ; $-$$ is current section size (in bytes)
-times (510 -($-$$)) db 0
+; 0x1be = 446 = 512 - 66 (66 is total size of descriptions of four partitions)
+times (0x1be - ($-$$)) db 0
 
-; Boot Record signature
-; here is the same as dw 0aa55h
-; little endian
-db 0x55
-db 0xaa
+    ; we only used first partition
+    ; this is the description of first partition
+    db 0x80 ; flag of boot partition
+    db 1, 1, 0
+    db 0x06 ; type of partition is FAT16
+    db 0x0f, 0x3f, 0xca
+    dd 0x3f ; initial address of partition in LBA
+    db 0x11, 0x1f, 0x03, 0
+
+    ; we do not use other partitions
+    times (16 * 3) db 0
+
+    ; Boot Record signature
+    ; here is the same as dw 0aa55h
+    ; little endian
+    db 0x55
+    db 0xaa
 
 	

@@ -1,3 +1,4 @@
+#include "mem.h"
 #include "memory.h"
 #include "print.h"
 #include "debug.h"
@@ -11,8 +12,7 @@ static void set_virtual_free_memory_region(uint64_t v, uint64_t e)
 {
     for (uint64_t start = PA_UP(v); start + PAGE_SIZE <= e; start += PAGE_SIZE)
     {
-        // check 0xffff800040000000 is 1gb range from kernel base of 0xffff800000200000
-        if (start + PAGE_SIZE <= 0xffff800040000000)
+        if (start + PAGE_SIZE <= 0xffff800030000000)
         {          
             kfree(start);
         }
@@ -24,7 +24,7 @@ uint64_t init_memory(void)
     int32_t count = *(int32_t*)MEMORY_ENTRY_NUMBER_ADDR;
     E820 *mem_map = (E820*)MEMORY_MAP_ADDR;
 
-    int free_region_count = 0;
+    int32_t free_region_count = 0;
 
     ASSERT(count <= 50);
 
@@ -42,7 +42,7 @@ uint64_t init_memory(void)
 
     //printk("Total memory is %uMB\n", total_mem/1024/1024);
 
-    for (int i = 0; i < free_region_count; i++)
+    for (int32_t i = 0; i < free_region_count; i++)
     {                  
         uint64_t vstart = P2V(physical_free_mem_region[i].address);
         uint64_t vend = vstart + physical_free_mem_region[i].length;
@@ -72,7 +72,7 @@ void kfree(uint64_t v)
 {
     ASSERT(v % PAGE_SIZE == 0);
     ASSERT(v >= (uint64_t)&end);
-    ASSERT(v + PAGE_SIZE <= 0xffff800040000000);
+    ASSERT(v + PAGE_SIZE <= 0xffff800030000000);
 
     // v is start address of new page
     Page *page_start_address = (Page*)v;
@@ -98,7 +98,7 @@ void* kmalloc(void)
     {
         ASSERT((uint64_t)page_address % PAGE_SIZE == 0);
         ASSERT((uint64_t)page_address >= (uint64_t)&end);
-        ASSERT((uint64_t)page_address + PAGE_SIZE <= 0xffff800040000000);
+        ASSERT((uint64_t)page_address + PAGE_SIZE <= 0xffff800030000000);
 
         // remove head of page list
         // head to next page
@@ -107,73 +107,5 @@ void* kmalloc(void)
     }
     
     return page_address;
-}
-
-void* kmemset(void *buffer, char value, size_t size)
-{
-    uint8_t *ptr = (uint8_t*)buffer;
-
-    while (size > 0)
-    {
-        *ptr = value;
-        ptr++;
-        size--;
-    }
-
-    return buffer;
-}
-
-void* kmemcpy(void *dst, void *src, size_t size)
-{
-    uint8_t *d = (uint8_t*)dst, *s = (uint8_t*)src;
-    while (size > 0)
-    {
-        *d = *s;
-        d++;
-        s++;
-        size--;
-    }
-
-    return dst;
-
-}   
-void* kmemmove(void *dst, void *src, size_t size)
-{
-    if (src < dst)
-    {
-        return kmemcpy(dst, src, size);
-    }
-
-    uint8_t *d = (uint8_t*)dst + size-1, *s = (uint8_t*)src + size-1;
-
-    while (size > 0) 
-    {
-        *d = *s;
-        d--;
-        s--;
-        size--; 
-    }
-
-    return dst;
-
-}
-
-int32_t kmemcmp(void *src1, void *src2, size_t size)
-{
-
-    uint8_t *d = (uint8_t*)src1, *s = (uint8_t*)src2;
-
-    while (size > 0)
-    {
-        if (*d > *s) return 1;
-        if (*d < *s) return -1;
-        
-        d++;
-        s++;
-
-        size--;
-    }
-
-    return 0;
 }
 
